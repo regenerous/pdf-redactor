@@ -49,6 +49,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build_windows.ps1
 
 Python 3.12 is needed for that build step. When it finishes, copy `dist\PDFRedactor.exe` anywhere and double-click it.
 
+Each GitHub release also includes that portable file. Download `PDFRedactor.exe` from the release and double-click it.
+
 The portable app uses the WebView2 window that comes with Windows 10 and 11.
 
 ## Tests

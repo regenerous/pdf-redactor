@@ -39,7 +39,7 @@ def test_page_describes_the_two_ways_to_redact(tmp_path):
         assert "Save a copy" in page
         assert "The original file stays untouched." in page
         assert f"Version {__version__}" in page
-        assert __version__ == "1.0.0"
+        assert __version__ == "1.0.1"
     finally:
         server.shutdown()
 

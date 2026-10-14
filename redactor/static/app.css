@@ -341,21 +341,33 @@ input:focus-visible,
 .swatch:disabled { opacity: 0.45; }
 
 .custom {
+  position: relative;
   width: 22px;
   height: 22px;
   border-radius: 50%;
   overflow: hidden;
   border: 1px solid var(--line-strong);
-  display: grid;
-  place-items: center;
+  background: conic-gradient(
+    #e23b3b,
+    #f0a202,
+    #f2e34c,
+    #3cbf6a,
+    #3aa0e8,
+    #5b5bd6,
+    #d946a6,
+    #e23b3b
+  );
 }
 
 .custom input {
-  width: 32px;
-  height: 32px;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
   border: 0;
   padding: 0;
-  background: none;
+  opacity: 0;
   cursor: pointer;
 }
 
@@ -379,9 +391,19 @@ input:focus-visible,
   gap: 8px;
 }
 
-.strings-block { flex: 0 1 auto; }
+.strings-block {
+  flex: 1 1 auto;
+}
 
-#strings { max-height: 168px; }
+.page-block {
+  flex: 0 1 auto;
+  max-height: 28vh;
+}
+
+#strings {
+  flex: 1;
+  max-height: none;
+}
 
 .string-copy {
   min-width: 0;
