@@ -32,7 +32,15 @@ jobs:
           path: dist/PDFRedactor.exe
 
   mac:
-    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
@@ -42,6 +50,28 @@ jobs:
 
       - name: Build Mac app
         run: bash scripts/build_mac.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-${{ matrix.arch }}
+          path: dist/PDFRedactor-mac.zip
+
+  mac-universal:
+    needs: mac
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: build/mac-arch
+
+      - name: Merge Intel and Apple silicon apps
+        run: |
+          ditto -x -k build/mac-arch/mac-arm64/PDFRedactor-mac.zip build/arm
+          ditto -x -k build/mac-arch/mac-x86_64/PDFRedactor-mac.zip build/x86
+          bash scripts/merge_mac_apps.sh build/arm/PDFRedactor.app build/x86/PDFRedactor.app dist/PDFRedactor.app
+          ditto -c -k --keepParent dist/PDFRedactor.app dist/PDFRedactor-mac.zip
 
       - uses: actions/upload-artifact@v4
         with:
@@ -55,17 +85,21 @@ jobs:
         run: |
           tag=$(gh release view --json tagName --jq .tagName)
           gh release upload "$tag" dist/PDFRedactor-mac.zip --clobber
-          notes=$(gh release view "$tag" --json body --jq .body)
-          case "$notes" in
-            *PDFRedactor-mac.zip*) ;;
-            *)
-              gh release edit "$tag" --notes "$(printf '%s\n\nMac (Apple silicon): download PDFRedactor-mac.zip, unzip it, and open PDFRedactor. The first time, Control-click the app and choose Open.\n' "$notes")"
-              ;;
-          esac
+          TAG="$tag" python3 - <<'PY'
+          import os, subprocess
+          tag = os.environ["TAG"]
+          notes = subprocess.check_output(["gh", "release", "view", tag, "--json", "body", "--jq", ".body"], text=True)
+          line = "Mac (Intel and Apple silicon): download PDFRedactor-mac.zip, unzip it, and open PDFRedactor. The first time, Control-click the app and choose Open."
+          if "Intel and Apple silicon" in notes:
+              raise SystemExit
+          old = "Mac (Apple silicon): download PDFRedactor-mac.zip, unzip it, and open PDFRedactor. The first time, Control-click the app and choose Open."
+          notes = notes.replace(old, line) if old in notes else notes.rstrip() + "\n\n" + line + "\n"
+          subprocess.check_call(["gh", "release", "edit", tag, "--notes", notes])
+          PY
 
   publish:
     if: github.event_name == 'push'
-    needs: [windows, mac]
+    needs: [windows, mac-universal]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -82,6 +116,6 @@ jobs:
           body: |
             Portable app. No installer.
             Windows: download PDFRedactor.exe and double-click it.
-            Mac (Apple silicon): download PDFRedactor-mac.zip, unzip it, and open PDFRedactor. The first time, Control-click the app and choose Open.
+            Mac (Intel and Apple silicon): download PDFRedactor-mac.zip, unzip it, and open PDFRedactor. The first time, Control-click the app and choose Open.
             The original PDF is left unchanged. Save a copy writes a new file with the redacted text removed.
           fail_on_unmatched_files: true

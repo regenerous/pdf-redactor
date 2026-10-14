@@ -36,7 +36,7 @@ The window title starts with **PDF Redactor**. Move the file anywhere, including
 
 If the window asks for **WebView2**, install the [x64 Evergreen Standalone Installer](https://developer.microsoft.com/microsoft-edge/webview2/) and open the exe again.
 
-On a Mac with Apple silicon, download [PDFRedactor-mac.zip](https://github.com/regenerous/pdf-redactor/releases/latest/download/PDFRedactor-mac.zip) from the same release. Unzip it and open **PDFRedactor**. The first time, Control-click the app and choose **Open**.
+On a Mac, download [PDFRedactor-mac.zip](https://github.com/regenerous/pdf-redactor/releases/latest/download/PDFRedactor-mac.zip) from the same release. It runs on Intel and Apple silicon. Unzip it and open **PDFRedactor**. The first time, Control-click the app and choose **Open**.
 
 ## Build from source
 
