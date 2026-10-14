@@ -4,12 +4,14 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
   windows:
+    if: github.event_name == 'push'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,14 +26,62 @@ jobs:
       - name: Build portable exe
         run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name PDFRedactor --icon redactor/static/icon.ico --manifest scripts/app.manifest --collect-all pymupdf --collect-all webview --add-data "redactor/static;redactor/static" launch.py
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/PDFRedactor.exe
+
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build Mac app
+        run: bash scripts/build_mac.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: dist/PDFRedactor-mac.zip
+
+      - name: Attach the Mac app to the latest release
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release view --json tagName --jq .tagName)
+          gh release upload "$tag" dist/PDFRedactor-mac.zip --clobber
+          notes=$(gh release view "$tag" --json body --jq .body)
+          case "$notes" in
+            *PDFRedactor-mac.zip*) ;;
+            *)
+              gh release edit "$tag" --notes "$(printf '%s\n\nMac (Apple silicon): download PDFRedactor-mac.zip, unzip it, and open PDFRedactor. The first time, Control-click the app and choose Open.\n' "$notes")"
+              ;;
+          esac
+
+  publish:
+    if: github.event_name == 'push'
+    needs: [windows, mac]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
           name: PDF Redactor ${{ github.ref_name }}
-          files: dist/PDFRedactor.exe
+          files: |
+            dist/windows/PDFRedactor.exe
+            dist/mac/PDFRedactor-mac.zip
           body: |
-            Portable Windows app. No installer.
-            Download PDFRedactor.exe and double-click it.
-            The taskbar and window use the app icon: three black redaction bars.
+            Portable app. No installer.
+            Windows: download PDFRedactor.exe and double-click it.
+            Mac (Apple silicon): download PDFRedactor-mac.zip, unzip it, and open PDFRedactor. The first time, Control-click the app and choose Open.
             The original PDF is left unchanged. Save a copy writes a new file with the redacted text removed.
           fail_on_unmatched_files: true
