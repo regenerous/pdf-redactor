@@ -7,7 +7,7 @@ A redaction deletes the text underneath it. The word cannot be copied out, searc
 ## Use it
 
 1. Open a PDF, or drop one on the window.
-2. **Click a word** redacts that whole word. If the same word appears again, choose **Redact them all**.
+2. **Click a word** redacts that whole word. If the same word appears again, choose **Redact them all**. That string stays in the Strings list, so you can still redact every remaining copy after you have moved on to something else.
 3. **Drag a box** covers a region. Use this for a signature, a photo, or a scan.
 4. Pick a block color before you redact. Black is the default. White still removes the text.
 5. Undo anything on the current page from the list.

@@ -6,6 +6,7 @@ from urllib.request import Request, urlopen
 
 import pymupdf
 
+from redactor import __version__
 from redactor.server import create_server
 from tests.test_engine import TOKEN, form_pdf
 
@@ -37,6 +38,8 @@ def test_page_describes_the_two_ways_to_redact(tmp_path):
         assert "Drag a box" in page
         assert "Save a copy" in page
         assert "The original file stays untouched." in page
+        assert f"Version {__version__}" in page
+        assert __version__ == "1.0.0"
     finally:
         server.shutdown()
 
@@ -81,6 +84,8 @@ def test_open_redact_save_and_keep_the_original(tmp_path: Path):
         added = json.loads(body)
         assert status == 200
         assert added["remaining"] == 2
+        assert added["strings"][0]["text"] == TOKEN
+        assert added["strings"][0]["remaining"] == 2
 
         status, body, _headers = call(
             server,

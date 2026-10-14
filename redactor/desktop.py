@@ -6,6 +6,7 @@ import argparse
 import threading
 import webbrowser
 
+from redactor import __version__
 from redactor.server import create_server
 
 
@@ -75,7 +76,7 @@ def _open_window(url: str) -> None:
         threading.Event().wait()
         return
     webview.create_window(
-        "PDF Redactor",
+        f"PDF Redactor {__version__}",
         url,
         width=1280,
         height=840,

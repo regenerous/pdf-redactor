@@ -10,6 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
+from redactor import __version__
 from redactor.engine import DocumentError, DocumentSession, redacted_filename
 
 MAX_JSON_BYTES = 1024 * 1024
@@ -98,7 +99,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             query = parse_qs(parsed.query)
             if method == "GET" and parts == ["api", "health"]:
-                self._json(200, {"ok": True})
+                self._json(200, {"ok": True, "version": __version__})
                 return
             if method == "GET" and parts == ["api", "session"]:
                 self._session()
@@ -159,6 +160,8 @@ class Handler(BaseHTTPRequestHandler):
             "app.js": "text/javascript; charset=utf-8",
         }[name]
         data = file_path.read_bytes()
+        if name == "index.html":
+            data = data.replace(b"__APP_VERSION__", __version__.encode("ascii"))
         self.send_response(200)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(data)))
@@ -232,7 +235,7 @@ class Handler(BaseHTTPRequestHandler):
                 payload.get("text"),
                 str(payload.get("color") or "#000000"),
             )
-            response = {"remaining": remaining, "redactions": session.public_redactions()}
+            response = {"remaining": remaining, **session.activity()}
         self._json(200, response)
 
     def _redact_all(self) -> None:
@@ -240,14 +243,14 @@ class Handler(BaseHTTPRequestHandler):
         with self.state.lock:
             session = self._require()
             added = session.redact_all(str(payload.get("text") or ""), str(payload.get("color") or "#000000"))
-            response = {"added": added, "redactions": session.public_redactions()}
+            response = {"added": added, **session.activity()}
         self._json(200, response)
 
     def _remove(self, redaction_id: str) -> None:
         with self.state.lock:
             session = self._require()
             session.remove(redaction_id)
-            response = {"redactions": session.public_redactions()}
+            response = session.activity()
         self._json(200, response)
 
     def _save(self) -> None:

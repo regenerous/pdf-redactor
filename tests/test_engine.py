@@ -51,6 +51,28 @@ def test_clicking_a_word_removes_only_that_word():
     assert TOKEN in reopened[1].get_text()
 
 
+def test_string_list_keeps_earlier_text_after_another_redaction():
+    session = open_form()
+    token = word_box(session, 0, TOKEN)
+    other = word_box(session, 0, "KeepMe")
+    session.add_area(0, token["x0"], token["y0"], token["x1"], token["y1"], TOKEN, "#111111")
+    session.add_area(0, other["x0"], other["y0"], other["x1"], other["y1"], "KeepMe", "#c4453c")
+    summary = {row["text"]: row for row in session.string_summary()}
+    assert list(summary)[0] == "KeepMe"
+    assert summary[TOKEN]["count"] == 1
+    assert summary[TOKEN]["remaining"] == 2
+    assert summary["KeepMe"]["remaining"] == 0
+    session.redact_all(TOKEN, "#111111")
+    finished = {row["text"]: row for row in session.string_summary()}
+    assert finished[TOKEN]["remaining"] == 0
+    assert finished[TOKEN]["count"] == 3
+    token_item = next(item for item in session.redactions if item.text == TOKEN)
+    session.remove(token_item.id)
+    after_undo = {row["text"]: row for row in session.string_summary()}
+    assert after_undo[TOKEN]["remaining"] == 1
+    assert after_undo[TOKEN]["count"] == 2
+
+
 def test_redact_all_removes_every_match_and_hidden_copies():
     session = open_form()
     added = session.redact_all(TOKEN, "#c4453c")

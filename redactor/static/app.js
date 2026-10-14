@@ -5,6 +5,7 @@ const state = {
   height: 0,
   words: [],
   redactions: [],
+  strings: [],
   mode: "click",
   color: "#111111",
   colorName: "Black",
@@ -37,6 +38,7 @@ const swatches = document.querySelectorAll(".swatch");
 const customWrap = document.getElementById("custom-wrap");
 const customColor = document.getElementById("custom-color");
 const colorName = document.getElementById("color-name");
+const stringList = document.getElementById("strings");
 const list = document.getElementById("list");
 const elsewhere = document.getElementById("elsewhere");
 const alertBox = document.getElementById("alert");
@@ -117,6 +119,7 @@ async function openFile(file) {
       body: file,
     });
     state.prompt = null;
+    clearDownload();
     applySession(session, 0);
     live.textContent = `Opened ${session.name}.`;
   } catch (error) {
@@ -131,6 +134,7 @@ async function openFile(file) {
 function applySession(session, page) {
   state.doc = { id: session.docId, name: session.name, pageCount: session.pageCount };
   state.redactions = session.redactions || [];
+  state.strings = session.strings || [];
   state.page = clampPage(page);
   renderChrome();
   showPage(state.page);
@@ -272,7 +276,7 @@ async function addRedaction(x0, y0, x1, y1, text) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ page: state.page, x0, y0, x1, y1, text, color }),
     });
-    state.redactions = result.redactions;
+    applyActivity(result);
     if (text && result.remaining > 0) {
       state.prompt = { text, color, remaining: result.remaining };
     } else if (state.prompt && state.prompt.text === text) {
@@ -288,7 +292,10 @@ async function addRedaction(x0, y0, x1, y1, text) {
 
 async function redactAll() {
   if (!state.prompt) return;
-  const { text, color } = state.prompt;
+  await redactString(state.prompt.text, state.prompt.color);
+}
+
+async function redactString(text, color) {
   clearAlert();
   try {
     const result = await request("/api/redactions/all", {
@@ -296,14 +303,19 @@ async function redactAll() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, color }),
     });
-    state.redactions = result.redactions;
-    state.prompt = null;
-    live.textContent = `Redacted every ${text}.`;
+    applyActivity(result);
+    if (state.prompt && state.prompt.text === text) state.prompt = null;
+    live.textContent = result.added ? `Redacted every ${text}.` : `Every ${text} is already redacted.`;
     renderChrome();
     drawOverlay();
   } catch (error) {
     showAlert(error.message);
   }
+}
+
+function applyActivity(result) {
+  state.redactions = result.redactions || [];
+  state.strings = result.strings || [];
 }
 
 function dismissPrompt() {
@@ -315,7 +327,7 @@ async function undo(id) {
   clearAlert();
   try {
     const result = await request(`/api/redactions/${encodeURIComponent(id)}`, { method: "DELETE" });
-    state.redactions = result.redactions;
+    applyActivity(result);
     if (state.prompt && !state.redactions.some((item) => item.text === state.prompt.text)) {
       state.prompt = null;
     }
@@ -327,6 +339,8 @@ async function undo(id) {
   }
 }
 
+let downloadUrl = "";
+
 async function saveCopy() {
   if (!state.doc || state.redactions.length === 0 || saving) return;
   saving = true;
@@ -335,9 +349,7 @@ async function saveCopy() {
   clearAlert();
   const suggested = suggestedName(state.doc.name);
   try {
-    const fileHandle = await chooseBrowserFile(suggested);
-    if (fileHandle === null) return;
-    const chosen = fileHandle ? "" : await chooseSavePath(suggested);
+    const chosen = await chooseSavePath(suggested);
     if (chosen === null) return;
     if (chosen) {
       await request("/api/save", {
@@ -351,26 +363,14 @@ async function saveCopy() {
     const response = await fetch("/api/save", { method: "POST" });
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
-      throw new Error(payload.error || "The copy couldn't be saved.");
+      throw new Error(payload.error || "The copy couldn't be saved. Try again.");
     }
     const blob = await response.blob();
-    if (fileHandle) {
-      const writable = await fileHandle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      noteSaved("Saved the copy. The original was not changed.");
-      return;
-    }
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = filenameFromDisposition(response.headers.get("Content-Disposition")) || suggested;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(link.href);
-    noteSaved("Saved a copy. The original was not changed.");
+    const name = filenameFromDisposition(response.headers.get("Content-Disposition")) || suggested;
+    offerDownload(blob, name);
+    noteSaved("Saved a copy to your downloads. The original was not changed.");
   } catch (error) {
-    showAlert(error.message);
+    showAlert(plainError(error));
   } finally {
     saving = false;
     saveButton.textContent = "Save a copy";
@@ -378,19 +378,36 @@ async function saveCopy() {
   }
 }
 
-async function chooseBrowserFile(suggested) {
-  const api = window.pywebview && window.pywebview.api;
-  if (api && typeof api.choose_save_path === "function") return "";
-  if (typeof window.showSaveFilePicker !== "function") return "";
-  try {
-    return await window.showSaveFilePicker({
-      suggestedName: suggested,
-      types: [{ description: "PDF", accept: { "application/pdf": [".pdf"] } }],
-    });
-  } catch (error) {
-    if (error && error.name === "AbortError") return null;
-    return "";
+function clearDownload() {
+  if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+  downloadUrl = "";
+  const link = document.getElementById("download-link");
+  link.hidden = true;
+  link.removeAttribute("href");
+}
+
+function offerDownload(blob, name) {
+  if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+  downloadUrl = URL.createObjectURL(blob);
+  const link = document.getElementById("download-link");
+  link.href = downloadUrl;
+  link.download = name;
+  link.textContent = "Download the copy";
+  link.hidden = false;
+  const trigger = document.createElement("a");
+  trigger.href = downloadUrl;
+  trigger.download = name;
+  document.body.append(trigger);
+  trigger.click();
+  trigger.remove();
+}
+
+function plainError(error) {
+  const message = error && error.message ? error.message : "";
+  if (!message || /Failed to execute|user agent|FileSystemFileHandle/.test(message)) {
+    return "The copy couldn't be saved. Try again.";
   }
+  return message;
 }
 
 async function chooseSavePath(suggested) {
@@ -441,11 +458,60 @@ function renderChrome() {
   } else {
     prompt.hidden = true;
   }
+  renderStrings();
   renderList();
   saveButton.disabled = !open || state.redactions.length === 0 || saving;
   if (!open) {
     empty.hidden = false;
     paperFrame.hidden = true;
+  }
+}
+
+function renderStrings() {
+  stringList.replaceChildren();
+  if (!state.doc) {
+    const item = document.createElement("li");
+    item.className = "empty-row";
+    item.textContent = "Strings you redact are kept here.";
+    stringList.append(item);
+    return;
+  }
+  if (state.strings.length === 0) {
+    const item = document.createElement("li");
+    item.className = "empty-row";
+    item.textContent = "No strings yet.";
+    stringList.append(item);
+    return;
+  }
+  for (const entry of state.strings) {
+    const item = document.createElement("li");
+    item.className = "item";
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.style.background = entry.color;
+    if (isLight(entry.color)) chip.classList.add("light-chip");
+    const copy = document.createElement("span");
+    copy.className = "string-copy";
+    const label = document.createElement("span");
+    label.className = "item-label";
+    label.textContent = entry.text;
+    const meta = document.createElement("span");
+    meta.className = "string-meta";
+    meta.textContent = entry.remaining === 0
+      ? "All redacted"
+      : `${entry.remaining} more in this file`;
+    copy.append(label, meta);
+    item.append(chip, copy);
+    if (entry.remaining > 0) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "string-action";
+      button.textContent = "Redact all";
+      button.setAttribute("aria-label", `Redact every ${entry.text}`);
+      button.addEventListener("click", () => redactString(entry.text, state.color));
+      item.append(button);
+    }
+    stringList.append(item);
   }
 }
 

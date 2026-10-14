@@ -290,6 +290,34 @@ class DocumentSession:
         if len(self.redactions) == before:
             raise DocumentError("That redaction is already gone.")
 
+    def string_summary(self) -> list[dict]:
+        """Unique redacted strings, newest first, with copies still left in the file."""
+        order: list[str] = []
+        counts: dict[str, int] = {}
+        colors: dict[str, str] = {}
+        for item in self.redactions:
+            if not item.text:
+                continue
+            counts[item.text] = counts.get(item.text, 0) + 1
+            colors[item.text] = item.color
+            if item.text in order:
+                order.remove(item.text)
+            order.append(item.text)
+        summary = []
+        for text in reversed(order):
+            summary.append(
+                {
+                    "text": text,
+                    "count": counts[text],
+                    "remaining": self.remaining_matches(text),
+                    "color": colors[text],
+                }
+            )
+        return summary
+
+    def activity(self) -> dict:
+        return {"redactions": self.public_redactions(), "strings": self.string_summary()}
+
     def public_redactions(self) -> list[dict]:
         published = []
         for item in self.redactions:
@@ -314,7 +342,7 @@ class DocumentSession:
             "docId": self.doc_id,
             "name": self.name,
             "pageCount": self.page_count,
-            "redactions": self.public_redactions(),
+            **self.activity(),
         }
 
     def export_pdf(self) -> bytes:
