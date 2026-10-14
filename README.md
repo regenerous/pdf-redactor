@@ -1,8 +1,23 @@
 # PDF Redactor
 
-PDF Redactor is a small desktop app for taking information out of a PDF. Open a file, click a word or drag a box, pick the block color, and save a copy. The original file is left as it is.
+Take information out of a PDF. Click a word or drag a box, pick a color, and save a copy. The original file stays as it is.
+
+<img src="docs/images/hero.png" alt="PDF Redactor open on an invoice. A red box covers the street address, black blocks cover a social security number in two places, and the side panel lists each redaction with Undo and Redact all." width="100%">
 
 A redaction deletes the text underneath it. The word cannot be copied out, searched, or brought back by removing the block. A box also erases the part of a picture it covers, which is how scanned pages are handled.
+
+<p>
+  <img src="docs/images/click-a-word.png" alt="Click a word to cover it. The social security number on an invoice is replaced by a black block." width="49%">
+  <img src="docs/images/drag-a-box.png" alt="Drag a box over a region. A rectangle is drawn over a street address." width="49%">
+</p>
+<p>
+  <img src="docs/images/redact-every-copy.png" alt="Redact every copy in the file. The number appears 2 more times, with a button to redact them all." width="49%">
+  <img src="docs/images/undo.png" alt="Undo a redaction from the list." width="49%">
+</p>
+<p>
+  <img src="docs/images/pick-a-color.png" alt="Pick the block color. Red is selected, next to black, charcoal, navy, green, white, and a custom color." width="49%">
+  <img src="docs/images/save-a-copy.png" alt="Save a copy. The original file stays untouched." width="49%">
+</p>
 
 ## Use it
 
