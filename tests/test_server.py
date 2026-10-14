@@ -1,5 +1,6 @@
 import json
 import struct
+import sys
 import threading
 from pathlib import Path
 from urllib.error import HTTPError
@@ -8,7 +9,7 @@ from urllib.request import Request, urlopen
 import pymupdf
 
 from redactor import __version__
-from redactor.server import create_server
+from redactor.server import create_server, static_root
 from tests.test_engine import TOKEN, form_pdf
 
 
@@ -27,6 +28,17 @@ def call(server, method, path, body=None, headers=None):
             return response.status, response.read(), dict(response.headers)
     except HTTPError as exc:
         return exc.code, exc.read(), dict(exc.headers)
+
+
+def test_frozen_mac_app_finds_static_files_in_resources(tmp_path, monkeypatch):
+    frameworks = tmp_path / "Contents" / "Frameworks"
+    resources = tmp_path / "Contents" / "Resources" / "redactor" / "static"
+    frameworks.mkdir(parents=True)
+    resources.mkdir(parents=True)
+    (resources / "index.html").write_text("ok")
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "_MEIPASS", str(frameworks), raising=False)
+    assert static_root() == resources
 
 
 def test_page_describes_the_two_ways_to_redact(tmp_path):

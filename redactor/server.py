@@ -35,8 +35,11 @@ def static_root() -> Path:
     import sys
 
     if getattr(sys, "frozen", False):
-        meipass = getattr(sys, "_MEIPASS", "")
-        candidates.append(Path(meipass) / "redactor" / "static")
+        meipass = Path(getattr(sys, "_MEIPASS", ""))
+        candidates.append(meipass / "redactor" / "static")
+        # A Mac .app keeps added files in Contents/Resources. PyInstaller may
+        # point _MEIPASS at Contents/Frameworks instead.
+        candidates.append(meipass.parent / "Resources" / "redactor" / "static")
     candidates.append(Path(__file__).resolve().parent / "static")
     for candidate in candidates:
         if (candidate / "index.html").is_file():
