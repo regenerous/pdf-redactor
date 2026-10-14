@@ -17,13 +17,13 @@ A redaction deletes the text underneath it. The word cannot be copied out or sea
 5. Each redacted string has **Undo** and **Redact all**.
 6. **Save a copy**. The new file name ends in `-redacted`.
 
-Arrow keys turn the page. Ctrl+O opens a file. Ctrl+S saves. Escape closes the “redact every copy” prompt.
+Arrow keys turn the page. On Windows, Ctrl+O opens a file and Ctrl+S saves. On a Mac, Command+O opens a file and Command+S saves. Escape closes the “redact every copy” prompt.
 
 Password-protected PDFs are refused. The PDF stays on your computer.
 
-## Download the Windows app
-
 The [one-page site](https://regenerous.github.io/pdf-redactor/) has the Windows and Mac downloads at the top.
+
+## Download the Windows app
 
 `PDFRedactor.exe` is the whole app, about 33 MB. Windows 10 or 11. No installer and no Python.
 
@@ -36,11 +36,23 @@ The window title starts with **PDF Redactor**. Move the file anywhere, including
 
 If the window asks for **WebView2**, install the [x64 Evergreen Standalone Installer](https://developer.microsoft.com/microsoft-edge/webview2/) and open the exe again.
 
-On a Mac, download [PDFRedactor-mac.zip](https://github.com/regenerous/pdf-redactor/releases/latest/download/PDFRedactor-mac.zip) from the same release. It runs on Intel and Apple silicon. Unzip it and open **PDFRedactor**. The first time, Control-click the app and choose **Open**.
+## Download the Mac app
+
+`PDFRedactor-mac.zip` is the whole app, about 71 MB. It runs on Intel and Apple silicon. No installer and no Python.
+
+1. Open [PDFRedactor-mac.zip](https://github.com/regenerous/pdf-redactor/releases/latest/download/PDFRedactor-mac.zip), or the [releases page](https://github.com/regenerous/pdf-redactor/releases) and click **PDFRedactor-mac.zip** under **Assets** on the top release.
+2. Open your **Downloads** folder and double-click the zip. macOS expands it into an app named **PDFRedactor**.
+3. Double-click **PDFRedactor**.
+
+The first time, macOS blocks the app because Apple has not checked it. Click **Done**. Open the Apple menu, choose **System Settings**, click **Privacy & Security**, scroll to **Security**, and click **Open Anyway**. Enter your password, then click **Open**. After that, a double-click opens the app.
+
+On an older Mac, Control-click **PDFRedactor**, choose **Open**, then click **Open** on the warning.
+
+Drag **PDFRedactor** into **Applications** if you want it with your other apps. It also runs from Downloads or a USB drive.
 
 ## Build from source
 
-Skip this if you downloaded the exe. The build needs Windows, an internet connection, and Python. It takes a few minutes. The finished exe runs without Python.
+Skip this if you downloaded the app. The Windows build needs Windows, an internet connection, and Python. It takes a few minutes. The finished exe runs without Python.
 
 ### Install Python
 
