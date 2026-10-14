@@ -23,7 +23,7 @@ Password-protected PDFs are refused. The PDF stays on your computer.
 
 ## Download the Windows app
 
-The [one-page site](https://regenerous.github.io/pdf-redactor/) has the Windows download at the top.
+The [one-page site](https://regenerous.github.io/pdf-redactor/) has the Windows and Mac downloads at the top.
 
 `PDFRedactor.exe` is the whole app, about 33 MB. Windows 10 or 11. No installer and no Python.
 
@@ -35,6 +35,8 @@ The [one-page site](https://regenerous.github.io/pdf-redactor/) has the Windows 
 The window title starts with **PDF Redactor**. Move the file anywhere, including a USB drive, and open it from there.
 
 If the window asks for **WebView2**, install the [x64 Evergreen Standalone Installer](https://developer.microsoft.com/microsoft-edge/webview2/) and open the exe again.
+
+On a Mac with Apple silicon, download [PDFRedactor-mac.zip](https://github.com/regenerous/pdf-redactor/releases/latest/download/PDFRedactor-mac.zip) from the same release. Unzip it and open **PDFRedactor**. The first time, Control-click the app and choose **Open**.
 
 ## Build from source
 
