@@ -23,6 +23,8 @@ Password-protected PDFs are refused. The PDF stays on your computer.
 
 ## Download the Windows app
 
+The [one-page site](https://regenerous.github.io/pdf-redactor/) has the Windows download at the top.
+
 `PDFRedactor.exe` is the whole app, about 33 MB. Windows 10 or 11. No installer and no Python.
 
 1. Open [PDFRedactor.exe](https://github.com/regenerous/pdf-redactor/releases/latest/download/PDFRedactor.exe), or the [releases page](https://github.com/regenerous/pdf-redactor/releases) and click **PDFRedactor.exe** under **Assets** on the top release.
