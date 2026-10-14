@@ -141,6 +141,17 @@ def test_duplicate_click_does_not_stack():
     assert len(session.redactions) == 1
 
 
+def test_undo_string_removes_every_copy_and_leaves_the_others():
+    session = open_form()
+    session.redact_all(TOKEN, "#111111")
+    other = word_box(session, 0, "KeepMe")
+    session.add_area(0, other["x0"], other["y0"], other["x1"], other["y1"], "KeepMe", "#c4453c")
+    session.remove_text(TOKEN)
+    assert TOKEN not in {item.text for item in session.redactions}
+    assert any(item.text == "KeepMe" for item in session.redactions)
+    assert TOKEN not in {row["text"] for row in session.string_summary()}
+
+
 def test_undo_brings_a_redaction_back_off_the_list():
     session = open_form()
     target = word_box(session, 0, "remains")

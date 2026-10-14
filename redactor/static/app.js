@@ -8,7 +8,6 @@ const state = {
   strings: [],
   mode: "click",
   color: "#111111",
-  colorName: "Black",
   custom: false,
   prompt: null,
   assurance: "The original file stays untouched.",
@@ -37,10 +36,7 @@ const promptOne = document.getElementById("prompt-one");
 const swatches = document.querySelectorAll(".swatch");
 const customWrap = document.getElementById("custom-wrap");
 const customColor = document.getElementById("custom-color");
-const colorName = document.getElementById("color-name");
-const stringList = document.getElementById("strings");
-const list = document.getElementById("list");
-const elsewhere = document.getElementById("elsewhere");
+const redactedList = document.getElementById("redacted");
 const alertBox = document.getElementById("alert");
 const assurance = document.getElementById("assurance");
 const saveButton = document.getElementById("save");
@@ -71,7 +67,7 @@ promptOne.addEventListener("click", dismissPrompt);
 saveButton.addEventListener("click", saveCopy);
 
 swatches.forEach((swatch) => {
-  swatch.addEventListener("click", () => selectSwatch(swatch.dataset.color, swatch.dataset.name));
+  swatch.addEventListener("click", () => selectSwatch(swatch.dataset.color));
 });
 customColor.addEventListener("input", () => selectCustom(customColor.value));
 
@@ -182,16 +178,14 @@ function setMode(mode) {
   drawOverlay();
 }
 
-function selectSwatch(color, name) {
+function selectSwatch(color) {
   state.color = color;
-  state.colorName = name;
   state.custom = false;
   renderChrome();
 }
 
 function selectCustom(color) {
   state.color = color;
-  state.colorName = "Custom";
   state.custom = true;
   renderChrome();
 }
@@ -327,16 +321,34 @@ async function undo(id) {
   clearAlert();
   try {
     const result = await request(`/api/redactions/${encodeURIComponent(id)}`, { method: "DELETE" });
-    applyActivity(result);
-    if (state.prompt && !state.redactions.some((item) => item.text === state.prompt.text)) {
-      state.prompt = null;
-    }
-    live.textContent = "Removed a redaction.";
-    renderChrome();
-    drawOverlay();
+    finishUndo(result, "Removed a redaction.");
   } catch (error) {
     showAlert(error.message);
   }
+}
+
+async function undoString(text) {
+  clearAlert();
+  try {
+    const result = await request("/api/redactions/undo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    finishUndo(result, `Removed ${text}.`);
+  } catch (error) {
+    showAlert(error.message);
+  }
+}
+
+function finishUndo(result, message) {
+  applyActivity(result);
+  if (state.prompt && !state.redactions.some((item) => item.text === state.prompt.text)) {
+    state.prompt = null;
+  }
+  live.textContent = message;
+  renderChrome();
+  drawOverlay();
 }
 
 let downloadUrl = "";
@@ -450,7 +462,6 @@ function renderChrome() {
   });
   customColor.disabled = !open;
   customWrap.classList.toggle("is-selected", state.custom);
-  colorName.textContent = state.colorName;
   if (state.prompt && open) {
     const count = state.prompt.remaining;
     prompt.hidden = false;
@@ -458,8 +469,7 @@ function renderChrome() {
   } else {
     prompt.hidden = true;
   }
-  renderStrings();
-  renderList();
+  renderRedacted();
   saveButton.disabled = !open || state.redactions.length === 0 || saving;
   if (!open) {
     empty.hidden = false;
@@ -467,94 +477,91 @@ function renderChrome() {
   }
 }
 
-function renderStrings() {
-  stringList.replaceChildren();
+function renderRedacted() {
+  redactedList.replaceChildren();
   if (!state.doc) {
-    const item = document.createElement("li");
-    item.className = "empty-row";
-    item.textContent = "Strings you redact are kept here.";
-    stringList.append(item);
+    redactedList.append(emptyRow("Open a PDF to start."));
     return;
   }
-  if (state.strings.length === 0) {
-    const item = document.createElement("li");
-    item.className = "empty-row";
-    item.textContent = "No strings yet.";
-    stringList.append(item);
+  const rows = redactedRows();
+  if (rows.length === 0) {
+    redactedList.append(emptyRow("Nothing redacted yet."));
     return;
   }
-  for (const entry of state.strings) {
-    const item = document.createElement("li");
-    item.className = "item";
-    const chip = document.createElement("span");
-    chip.className = "chip";
-    chip.style.background = entry.color;
-    if (isLight(entry.color)) chip.classList.add("light-chip");
-    const copy = document.createElement("span");
-    copy.className = "string-copy";
-    const label = document.createElement("span");
-    label.className = "item-label";
-    label.textContent = entry.text;
-    const meta = document.createElement("span");
-    meta.className = "string-meta";
-    meta.textContent = entry.remaining === 0
-      ? "All redacted"
-      : `${entry.remaining} more in this file`;
-    copy.append(label, meta);
-    item.append(chip, copy);
-    if (entry.remaining > 0) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "string-action";
-      button.textContent = "Redact all";
-      button.setAttribute("aria-label", `Redact every ${entry.text}`);
-      button.addEventListener("click", () => redactString(entry.text, state.color));
-      item.append(button);
-    }
-    stringList.append(item);
-  }
+  for (const row of rows) redactedList.append(redactedItem(row));
 }
 
-function renderList() {
-  list.replaceChildren();
-  if (!state.doc) {
-    const item = document.createElement("li");
-    item.className = "empty-row";
-    item.textContent = "Open a PDF to start.";
-    list.append(item);
-    elsewhere.hidden = true;
-    return;
-  }
-  const onPage = state.redactions.filter((item) => item.page === state.page).slice().reverse();
-  const other = state.redactions.length - onPage.length;
-  if (onPage.length === 0) {
-    const item = document.createElement("li");
-    item.className = "empty-row";
-    item.textContent = "Nothing on this page yet.";
-    list.append(item);
-  } else {
-    for (const redaction of onPage) {
-      const item = document.createElement("li");
-      item.className = "item";
-      const chip = document.createElement("span");
-      chip.className = "chip";
-      chip.style.background = redaction.color;
-      if (isLight(redaction.color)) chip.classList.add("light-chip");
-      const label = document.createElement("span");
-      label.className = "item-label";
-      label.textContent = redaction.text || "Marked area";
-      const undoButton = document.createElement("button");
-      undoButton.type = "button";
-      undoButton.className = "undo";
-      undoButton.setAttribute("aria-label", `Undo ${redaction.text || "marked area"}`);
-      undoButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8 8.5H4.8V5.2M5.2 13.2a6.6 6.6 0 1 0 1.1-4.1L4.8 8.5"/></svg> Undo';
-      undoButton.addEventListener("click", () => undo(redaction.id));
-      item.append(chip, label, undoButton);
-      list.append(item);
+function emptyRow(text) {
+  const item = document.createElement("li");
+  item.className = "empty-row";
+  item.textContent = text;
+  return item;
+}
+
+function redactedRows() {
+  const summary = new Map(state.strings.map((entry) => [entry.text, entry]));
+  const seen = new Set();
+  const rows = [];
+  for (let index = state.redactions.length - 1; index >= 0; index -= 1) {
+    const item = state.redactions[index];
+    if (!item.text) {
+      rows.push({ kind: "area", id: item.id, color: item.color });
+      continue;
     }
+    if (seen.has(item.text)) continue;
+    seen.add(item.text);
+    const entry = summary.get(item.text);
+    if (!entry) continue;
+    rows.push({ kind: "string", ...entry });
   }
-  elsewhere.hidden = other === 0;
-  elsewhere.textContent = other === 1 ? "1 more on another page" : `${other} more on other pages`;
+  return rows;
+}
+
+function redactedItem(row) {
+  const item = document.createElement("li");
+  item.className = "item";
+  const chip = document.createElement("span");
+  chip.className = "chip";
+  chip.style.background = row.color;
+  if (isLight(row.color)) chip.classList.add("light-chip");
+  const copy = document.createElement("span");
+  copy.className = "string-copy";
+  const label = document.createElement("span");
+  label.className = "item-label";
+  const meta = document.createElement("span");
+  meta.className = "string-meta";
+  const actions = document.createElement("span");
+  actions.className = "row-actions";
+  if (row.kind === "string") {
+    label.textContent = row.text;
+    meta.textContent = row.remaining === 0 ? "All redacted" : `${row.remaining} more in this file`;
+    const redactAllButton = document.createElement("button");
+    redactAllButton.type = "button";
+    redactAllButton.className = "string-action";
+    redactAllButton.textContent = "Redact all";
+    redactAllButton.disabled = row.remaining === 0;
+    redactAllButton.setAttribute("aria-label", `Redact every ${row.text}`);
+    redactAllButton.addEventListener("click", () => redactString(row.text, state.color));
+    const undoButton = undoButtonFor(`Undo ${row.text}`, () => undoString(row.text));
+    actions.append(redactAllButton, undoButton);
+  } else {
+    label.textContent = "Marked area";
+    meta.textContent = "Drawn box";
+    actions.append(undoButtonFor("Undo marked area", () => undo(row.id)));
+  }
+  copy.append(label, meta);
+  item.append(chip, copy, actions);
+  return item;
+}
+
+function undoButtonFor(label, onClick) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "undo";
+  button.setAttribute("aria-label", label);
+  button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M8 8.5H4.8V5.2M5.2 13.2a6.6 6.6 0 1 0 1.1-4.1L4.8 8.5"/></svg> Undo';
+  button.addEventListener("click", onClick);
+  return button;
 }
 
 function drawOverlay() {

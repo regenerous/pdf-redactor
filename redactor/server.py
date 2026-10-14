@@ -117,6 +117,9 @@ class Handler(BaseHTTPRequestHandler):
             if method == "POST" and parts == ["api", "redactions", "all"]:
                 self._redact_all()
                 return
+            if method == "POST" and parts == ["api", "redactions", "undo"]:
+                self._undo_string()
+                return
             if method == "DELETE" and len(parts) == 3 and parts[:2] == ["api", "redactions"]:
                 self._remove(parts[2])
                 return
@@ -258,6 +261,14 @@ class Handler(BaseHTTPRequestHandler):
             session = self._require()
             added = session.redact_all(str(payload.get("text") or ""), str(payload.get("color") or "#000000"))
             response = {"added": added, **session.activity()}
+        self._json(200, response)
+
+    def _undo_string(self) -> None:
+        payload = self._json_body()
+        with self.state.lock:
+            session = self._require()
+            session.remove_text(str(payload.get("text") or ""))
+            response = session.activity()
         self._json(200, response)
 
     def _remove(self, redaction_id: str) -> None:

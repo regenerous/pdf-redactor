@@ -129,16 +129,28 @@ def _apply_window_icon(window) -> None:
         user32.LoadImageW.restype = ctypes.c_void_p
         user32.SendMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_void_p]
         user32.SendMessageW.restype = ctypes.c_void_p
+        user32.GetDpiForWindow.argtypes = [ctypes.c_void_p]
+        user32.GetDpiForWindow.restype = ctypes.c_uint
+        dpi = int(user32.GetDpiForWindow(hwnd) or 96)
+        # Ask for a size the icon file actually contains, so Windows does not stretch it.
+        big = _icon_size(round(32 * dpi / 96))
+        small = _icon_size(round(16 * dpi / 96))
         image_icon = 1
         load_from_file = 0x00000010
-        hicon = user32.LoadImageW(None, str(icon), image_icon, 0, 0, load_from_file)
-        if not hicon:
-            return
+        big_icon = user32.LoadImageW(None, str(icon), image_icon, big, big, load_from_file)
+        small_icon = user32.LoadImageW(None, str(icon), image_icon, small, small, load_from_file)
         wm_seticon = 0x0080
-        user32.SendMessageW(hwnd, wm_seticon, 1, hicon)
-        user32.SendMessageW(hwnd, wm_seticon, 0, hicon)
+        if big_icon:
+            user32.SendMessageW(hwnd, wm_seticon, 1, big_icon)
+        if small_icon:
+            user32.SendMessageW(hwnd, wm_seticon, 0, small_icon)
     except Exception:
         return
+
+
+def _icon_size(target: int) -> int:
+    choices = (16, 20, 24, 28, 30, 32, 36, 40, 48, 60, 64, 72, 96, 128, 256)
+    return min(choices, key=lambda size: (abs(size - target), size))
 
 
 if __name__ == "__main__":

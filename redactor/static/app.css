@@ -178,7 +178,7 @@ input:focus-visible,
   letter-spacing: -0.03em;
 }
 
-.empty-copy, .drop-hint, .assurance, .elsewhere, .color-name, .empty-row {
+.empty-copy, .drop-hint, .assurance, .empty-row {
   color: var(--muted);
 }
 
@@ -373,8 +373,6 @@ input:focus-visible,
 
 .custom input:disabled { cursor: not-allowed; }
 
-.color-name { font-size: 13px; }
-
 .lists {
   min-height: 0;
   flex: 1;
@@ -391,22 +389,22 @@ input:focus-visible,
   gap: 8px;
 }
 
-.strings-block {
-  flex: 1 1 auto;
-}
-
-.page-block {
-  flex: 0 1 auto;
-  max-height: 28vh;
-}
-
-#strings {
+#redacted {
   flex: 1;
   max-height: none;
 }
 
+.row-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
 .string-copy {
   min-width: 0;
+  flex: 1;
   display: grid;
 }
 
@@ -416,7 +414,6 @@ input:focus-visible,
 }
 
 .string-action {
-  margin-left: auto;
   border: 0;
   border-radius: 8px;
   background: var(--ink);
@@ -427,11 +424,17 @@ input:focus-visible,
   flex: 0 0 auto;
 }
 
-.string-action:hover { background: #000; }
+.string-action:hover:not(:disabled) { background: #000; }
+
+.string-action:disabled {
+  background: transparent;
+  color: var(--muted);
+  cursor: default;
+}
 
 .list-head { display: grid; gap: 2px; }
 
-.elsewhere, .empty-row { margin: 0; font-size: 13px; }
+.empty-row { margin: 0; font-size: 13px; }
 
 .redaction-list {
   list-style: none;
@@ -471,7 +474,6 @@ input:focus-visible,
 }
 
 .undo {
-  margin-left: auto;
   border: 0;
   background: transparent;
   color: #5c574f;
@@ -479,7 +481,9 @@ input:focus-visible,
   align-items: center;
   gap: 4px;
   border-radius: 8px;
-  padding: 4px 6px;
+  padding: 6px;
+  font-size: 12px;
+  font-weight: 600;
   flex: 0 0 auto;
 }
 

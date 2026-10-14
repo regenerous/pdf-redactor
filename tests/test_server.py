@@ -39,8 +39,11 @@ def test_page_describes_the_two_ways_to_redact(tmp_path):
         assert "Drag a box" in page
         assert "Save a copy" in page
         assert "The original file stays untouched." in page
+        assert "Redacted" in page
+        assert "color-name" not in page
+        assert "On this page" not in page
         assert f"Version {__version__}" in page
-        assert __version__ == "1.0.2"
+        assert __version__ == "1.0.3"
         assert "f6f4ee" in page
     finally:
         server.shutdown()
@@ -139,12 +142,22 @@ def test_favicon_is_the_three_bar_icon():
     assert kind == 1
     assert count >= 4
     widths = []
+    frames = {}
     offset = 6
     for _ in range(count):
-        width, _height, *_rest = struct.unpack_from("<BBBBHHII", icon, offset)
-        widths.append(256 if width == 0 else width)
+        width, _height, _colors, _reserved, _planes, _bits, nbytes, image_offset = struct.unpack_from(
+            "<BBBBHHII", icon, offset
+        )
+        size = 256 if width == 0 else width
+        widths.append(size)
+        frames[size] = icon[image_offset : image_offset + nbytes]
         offset += 16
-    assert {16, 24, 32, 256} <= set(widths)
+    assert {16, 24, 32, 48, 256} <= set(widths)
+    # Uncompressed BMP frames. A PNG frame is what Windows scales into a soft taskbar icon.
+    assert frames[24][:4] == b"\x28\x00\x00\x00"
+    xor = frames[24][40 : 40 + 24 * 24 * 4]
+    alphas = xor[3::4]
+    assert set(alphas) <= {0, 255}
 
     server, _state = start_server()
     try:

@@ -16,7 +16,7 @@ if (-not (Test-Path ".\.venv\Scripts\python.exe")) {
 $VenvPython = ".\.venv\Scripts\python.exe"
 & $VenvPython -m pip install --upgrade pip
 & $VenvPython -m pip install -r requirements.txt -r requirements-windows.txt
-& $VenvPython -m PyInstaller --noconfirm --clean --onefile --windowed --name "PDFRedactor" --icon "redactor/static/icon.ico" --collect-all pymupdf --collect-all webview --add-data "redactor/static;redactor/static" launch.py
+& $VenvPython -m PyInstaller --noconfirm --clean --onefile --windowed --name "PDFRedactor" --icon "redactor/static/icon.ico" --manifest "scripts/app.manifest" --collect-all pymupdf --collect-all webview --add-data "redactor/static;redactor/static" launch.py
 
 Write-Host ""
 Write-Host "Portable app: $Root\dist\PDFRedactor.exe"

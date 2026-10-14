@@ -290,6 +290,15 @@ class DocumentSession:
         if len(self.redactions) == before:
             raise DocumentError("That redaction is already gone.")
 
+    def remove_text(self, text: str) -> None:
+        label = self._label(text)
+        if not label:
+            raise DocumentError("That redaction is already gone.")
+        before = len(self.redactions)
+        self.redactions = [item for item in self.redactions if item.text != label]
+        if len(self.redactions) == before:
+            raise DocumentError("That redaction is already gone.")
+
     def string_summary(self) -> list[dict]:
         """Unique redacted strings, newest first, with copies still left in the file."""
         order: list[str] = []

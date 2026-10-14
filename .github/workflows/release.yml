@@ -22,7 +22,7 @@ jobs:
         run: python -m pip install -r requirements.txt -r requirements-windows.txt
 
       - name: Build portable exe
-        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name PDFRedactor --icon redactor/static/icon.ico --collect-all pymupdf --collect-all webview --add-data "redactor/static;redactor/static" launch.py
+        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name PDFRedactor --icon redactor/static/icon.ico --manifest scripts/app.manifest --collect-all pymupdf --collect-all webview --add-data "redactor/static;redactor/static" launch.py
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
