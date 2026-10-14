@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PDF Redactor</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231c1b19'/%3E%3Crect x='8' y='8' width='16' height='4' fill='%23f4f1ea'/%3E%3Crect x='8' y='15' width='16' height='4' fill='%23f4f1ea'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/app.css" />
+</head>
+<body>
+  <h1 class="visually-hidden">PDF Redactor</h1>
+  <div class="app">
+    <section class="stage">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button type="button" class="open-button" id="open-button">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" d="M3.5 8.2V18a1.6 1.6 0 0 0 1.6 1.6h13.8A1.6 1.6 0 0 0 20.5 18V10a1.6 1.6 0 0 0-1.6-1.6h-6.4L10.2 6H5.1A1.6 1.6 0 0 0 3.5 7.6v.6z"/>
+            </svg>
+            Open
+          </button>
+          <p class="filename" id="filename" hidden></p>
+        </div>
+        <div class="pager" id="pager" hidden>
+          <button type="button" id="prev" aria-label="Previous page">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M14.5 6.5 9 12l5.5 5.5"/></svg>
+          </button>
+          <p id="page-label">1 / 1</p>
+          <button type="button" id="next" aria-label="Next page">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" d="M9.5 6.5 15 12l-5.5 5.5"/></svg>
+          </button>
+        </div>
+        <div class="topbar-balance"></div>
+      </header>
+      <p class="stage-error" id="stage-error" role="alert" hidden></p>
+      <div class="canvas" id="canvas">
+        <div class="empty" id="empty">
+          <p class="empty-title">Redact a PDF</p>
+          <p class="empty-copy">Open a file, then click a word or drag a box over anything that should be gone. Saving writes a new PDF with that information removed.</p>
+          <button type="button" class="primary" id="empty-open">Open a PDF</button>
+          <p class="drop-hint">Or drop a file here.</p>
+        </div>
+        <div class="paper-frame" id="paper-frame" hidden>
+          <div class="paper" id="paper">
+            <img id="page-image" alt="" />
+            <div class="overlay" id="overlay"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <aside class="panel" id="panel">
+      <h2>Redact</h2>
+      <div class="modes" role="group" aria-label="How to redact">
+        <button type="button" id="mode-drag" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="4.5" y="4.5" width="15" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-dasharray="2.4 2.2"/>
+          </svg>
+          Drag a box
+        </button>
+        <button type="button" id="mode-click" aria-pressed="true">Click a word</button>
+      </div>
+      <div class="prompt" id="prompt" hidden>
+        <p id="prompt-text"></p>
+        <button type="button" class="primary compact" id="prompt-all">Redact them all</button>
+        <button type="button" class="quiet" id="prompt-one">Just this one</button>
+      </div>
+      <div class="field">
+        <p class="label" id="color-label">Block color</p>
+        <div class="swatches" role="radiogroup" aria-labelledby="color-label">
+          <button type="button" class="swatch" data-color="#111111" data-name="Black" role="radio" aria-checked="true" aria-label="Black"></button>
+          <button type="button" class="swatch" data-color="#5e5a55" data-name="Charcoal" role="radio" aria-checked="false" aria-label="Charcoal"></button>
+          <button type="button" class="swatch" data-color="#c4453c" data-name="Red" role="radio" aria-checked="false" aria-label="Red"></button>
+          <button type="button" class="swatch" data-color="#1e3a5f" data-name="Navy" role="radio" aria-checked="false" aria-label="Navy"></button>
+          <button type="button" class="swatch" data-color="#2c7a4b" data-name="Green" role="radio" aria-checked="false" aria-label="Green"></button>
+          <button type="button" class="swatch light" data-color="#ffffff" data-name="White" role="radio" aria-checked="false" aria-label="White"></button>
+          <label class="custom" id="custom-wrap" title="Custom color">
+            <input type="color" id="custom-color" value="#7a4e2d" aria-label="Custom color" />
+          </label>
+          <span class="color-name" id="color-name">Black</span>
+        </div>
+      </div>
+      <div class="list-block">
+        <div class="list-head">
+          <h3>On this page</h3>
+          <p class="elsewhere" id="elsewhere" hidden></p>
+        </div>
+        <ul class="redaction-list" id="list"></ul>
+      </div>
+      <div class="panel-footer">
+        <p class="alert" id="alert" role="alert" hidden></p>
+        <p class="assurance" id="assurance">The original file stays untouched.</p>
+        <button type="button" class="save" id="save" disabled>Save a copy</button>
+      </div>
+    </aside>
+  </div>
+  <input type="file" id="file-input" accept="application/pdf,.pdf" hidden />
+  <div class="drop-veil" id="drop-veil" hidden>Drop the PDF to open it</div>
+  <p id="live" class="visually-hidden" aria-live="polite"></p>
+  <noscript><p class="noscript">PDF Redactor needs JavaScript turned on.</p></noscript>
+  <script src="/app.js"></script>
+</body>
+</html>
