@@ -22,7 +22,7 @@ jobs:
         run: python -m pip install -r requirements.txt -r requirements-windows.txt
 
       - name: Build portable exe
-        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name PDFRedactor --collect-all pymupdf --collect-all webview --add-data "redactor/static;redactor/static" launch.py
+        run: python -m PyInstaller --noconfirm --clean --onefile --windowed --name PDFRedactor --icon redactor/static/icon.ico --collect-all pymupdf --collect-all webview --add-data "redactor/static;redactor/static" launch.py
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -32,5 +32,6 @@ jobs:
           body: |
             Portable Windows app. No installer.
             Download PDFRedactor.exe and double-click it.
+            The taskbar and window use the app icon: three black redaction bars.
             The original PDF is left unchanged. Save a copy writes a new file with the redacted text removed.
           fail_on_unmatched_files: true

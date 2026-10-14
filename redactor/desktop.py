@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import sys
 import threading
 import webbrowser
 
 from redactor import __version__
-from redactor.server import create_server
+from redactor.server import create_server, static_root
 
 
 class SaveDialog:
@@ -75,7 +76,8 @@ def _open_window(url: str) -> None:
         webbrowser.open(url)
         threading.Event().wait()
         return
-    webview.create_window(
+    _prepare_windows_taskbar()
+    window = webview.create_window(
         f"PDF Redactor {__version__}",
         url,
         width=1280,
@@ -83,7 +85,60 @@ def _open_window(url: str) -> None:
         min_size=(960, 680),
         js_api=SaveDialog(),
     )
+    try:
+        window.events.shown += lambda: _apply_window_icon(window)
+    except Exception:
+        pass
     webview.start()
+
+
+def _prepare_windows_taskbar() -> None:
+    """Ask Windows to use this app's icon instead of grouping it under Python."""
+    if sys.platform != "win32":
+        return
+    import ctypes
+
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("regenerous.PDFRedactor")
+
+
+def _apply_window_icon(window) -> None:
+    if sys.platform != "win32":
+        return
+    icon = static_root() / "icon.ico"
+    if not icon.is_file():
+        return
+    try:
+        import ctypes
+
+        native = getattr(window, "native", None)
+        handle = getattr(native, "Handle", None) if native is not None else None
+        if handle is None or not hasattr(handle, "ToInt64"):
+            return
+        hwnd = int(handle.ToInt64())
+        if not hwnd:
+            return
+        user32 = ctypes.windll.user32
+        user32.LoadImageW.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_wchar_p,
+            ctypes.c_uint,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_uint,
+        ]
+        user32.LoadImageW.restype = ctypes.c_void_p
+        user32.SendMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_void_p]
+        user32.SendMessageW.restype = ctypes.c_void_p
+        image_icon = 1
+        load_from_file = 0x00000010
+        hicon = user32.LoadImageW(None, str(icon), image_icon, 0, 0, load_from_file)
+        if not hicon:
+            return
+        wm_seticon = 0x0080
+        user32.SendMessageW(hwnd, wm_seticon, 1, hicon)
+        user32.SendMessageW(hwnd, wm_seticon, 0, hicon)
+    except Exception:
+        return
 
 
 if __name__ == "__main__":

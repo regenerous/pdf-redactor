@@ -88,9 +88,7 @@ class Handler(BaseHTTPRequestHandler):
             parsed = urlparse(self.path)
             parts = [part for part in parsed.path.split("/") if part]
             if parsed.path == "/favicon.ico":
-                self.send_response(204)
-                self.send_header("Content-Length", "0")
-                self.end_headers()
+                self._favicon()
                 return
             if method == "GET" and parsed.path in ("/", "/index.html", "/app.css", "/app.js"):
                 self._serve_static(parsed.path)
@@ -147,6 +145,22 @@ class Handler(BaseHTTPRequestHandler):
             self._json(403, {"error": "Blocked."})
             return True
         return False
+
+    def _favicon(self) -> None:
+        icon = static_root() / "icon.ico"
+        if not icon.is_file():
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        data = icon.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "image/x-icon")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        self.wfile.write(data)
 
     def _serve_static(self, path: str) -> None:
         name = "index.html" if path in ("/", "/index.html") else path.lstrip("/")
