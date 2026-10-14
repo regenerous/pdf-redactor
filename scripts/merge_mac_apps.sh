@@ -27,6 +27,10 @@ merge_file() {
   local b="$x86/$rel"
   local dest="$out/$rel"
 
+  case "$rel" in
+    Contents/_CodeSignature|Contents/_CodeSignature/*) return ;;
+  esac
+
   if [[ -d "$b" && ! -L "$b" ]]; then
     mkdir -p "$dest"
     return
@@ -58,7 +62,11 @@ merge_file() {
 }
 
 while IFS= read -r -d '' path; do
-  merge_file "${path#"$x86"/}"
+  rel="${path#"$x86"/}"
+  if [[ -z "$rel" || "$rel" == "$path" ]]; then
+    continue
+  fi
+  merge_file "$rel"
 done < <(find "$x86" -print0)
 
 fail=0
