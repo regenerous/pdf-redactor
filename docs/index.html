@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PDF Redactor</title>
-  <meta name="description" content="Take names, numbers, and other private details out of a PDF. PDF Redactor is a standalone Windows program. Nothing to install." />
+  <meta name="description" content="Take names, numbers, and other private details out of a PDF. Run PDF Redactor in the browser, or download it for Windows or Mac. Nothing to install." />
   <link rel="icon" href="images/icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -58,24 +58,33 @@
       object-fit: contain;
     }
 
-    .dl-linux {
-      display: grid;
-      grid-template-columns: 20px auto;
-      column-gap: 8px;
-      row-gap: 2px;
-      justify-content: center;
-      align-items: center;
+    .dl-browser {
+      flex-direction: column;
+      gap: 3px;
+      min-height: 64px;
+      line-height: 1.15;
+      padding-top: 10px;
+      padding-bottom: 10px;
     }
 
-    .dl-linux .os-icon { grid-row: 1; grid-column: 1; }
-    .dl-linux .os { grid-row: 1; grid-column: 2; }
+    .dl-browser .label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
 
-    .dl-linux small {
-      grid-column: 1 / -1;
+    .dl-browser small {
       font-size: 11px;
       font-weight: 500;
       letter-spacing: 0;
-      line-height: 1.2;
+      line-height: 1.25;
+      text-align: center;
+      color: rgba(255, 255, 255, 0.78);
+    }
+
+    a.dl:focus-visible {
+      outline: 2px solid #1c1b19;
+      outline-offset: 3px;
     }
 
     a.dl {
@@ -234,6 +243,7 @@
     @media (max-width: 800px) {
       h1 { font-size: 40px; }
       .lede { font-size: 24px; }
+      .downloads { grid-template-columns: 1fr; }
       .step {
         grid-template-columns: 1fr;
         row-gap: 16px;
@@ -270,11 +280,13 @@
           <img class="os-icon" src="images/apple.svg" alt="" />
           Mac
         </a>
-        <button class="dl dl-linux" type="button" disabled aria-label="Linux, not available yet">
-          <img class="os-icon" src="images/linux.svg" alt="" />
-          <span class="os">Linux</span>
-          <small>Not Available Yet</small>
-        </button>
+        <a class="dl dl-browser" href="app/index.html">
+          <span class="label">
+            <img class="os-icon" src="images/browser.svg" alt="" />
+            <span>In Browser</span>
+          </span>
+          <small>file stays locally in browser</small>
+        </a>
       </nav>
     </section>
 
@@ -283,7 +295,7 @@
 
     <div class="run">
       <p class="section-label">Nothing to install</p>
-      <p class="run-copy">Open the download and it runs. There is no setup.</p>
+      <p class="run-copy">Open the download and it runs. There is no setup. In the browser, the PDF stays on this computer.</p>
     </div>
 
     <img class="hero" src="images/hero.png" alt="PDF Redactor open on an invoice. Black blocks cover an address, a social security number, and the same number in a reference line. The side panel lists each redaction." />

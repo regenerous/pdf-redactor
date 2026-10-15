@@ -10,7 +10,7 @@ const state = {
   color: "#111111",
   custom: false,
   prompt: null,
-  assurance: "The original file stays untouched.",
+  assurance: document.getElementById("assurance").textContent,
 };
 
 const openButton = document.getElementById("open-button");
@@ -157,7 +157,11 @@ async function showPage(index) {
     pageImage.onload = () => {
       if (token === loadToken) pageImage.style.opacity = "1";
     };
-    pageImage.src = `/api/pages/${page}?scale=${scale}&doc=${encodeURIComponent(state.doc.id)}`;
+    const imageURL = window.redactorLocal
+      ? await window.redactorLocal.pageURL(page, scale, state.doc.id)
+      : `/api/pages/${page}?scale=${scale}&doc=${encodeURIComponent(state.doc.id)}`;
+    if (token !== loadToken) return;
+    pageImage.src = imageURL;
     drawOverlay();
   } catch (error) {
     if (token !== loadToken) return;
@@ -372,13 +376,21 @@ async function saveCopy() {
       noteSaved("Saved the copy. The original was not changed.");
       return;
     }
-    const response = await fetch("/api/save", { method: "POST" });
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({}));
-      throw new Error(payload.error || "The copy couldn't be saved. Try again.");
+    let blob;
+    let name = suggested;
+    if (window.redactorLocal) {
+      const saved = await window.redactorLocal.save();
+      blob = saved.blob;
+      name = saved.name || suggested;
+    } else {
+      const response = await fetch("/api/save", { method: "POST" });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || "The copy couldn't be saved. Try again.");
+      }
+      blob = await response.blob();
+      name = filenameFromDisposition(response.headers.get("Content-Disposition")) || suggested;
     }
-    const blob = await response.blob();
-    const name = filenameFromDisposition(response.headers.get("Content-Disposition")) || suggested;
     offerDownload(blob, name);
     noteSaved("Saved a copy to your downloads. The original was not changed.");
   } catch (error) {
@@ -769,6 +781,7 @@ function onDrop(event) {
 }
 
 async function request(url, options) {
+  if (window.redactorLocal) return window.redactorLocal.request(url, options);
   const response = await fetch(url, options);
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.error || "Something went wrong. Try that again.");

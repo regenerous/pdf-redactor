@@ -21,7 +21,7 @@ Arrow keys turn the page. On Windows, Ctrl+O opens a file and Ctrl+S saves. On a
 
 Password-protected PDFs are refused. The PDF stays on your computer.
 
-The [one-page site](https://regenerous.github.io/pdf-redactor/) has the Windows and Mac downloads at the top.
+The [one-page site](https://regenerous.github.io/pdf-redactor/) has the Windows and Mac downloads, and an **In Browser** button. In the browser the PDF stays on your computer. Nothing is uploaded.
 
 ## Download the Windows app
 
