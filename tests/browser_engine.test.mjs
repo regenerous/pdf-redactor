@@ -259,6 +259,10 @@ check(page.includes(">In Browser<"), "landing page has the browser button");
 check(page.includes("file stays locally in browser"), "landing page has the local-file note");
 check(!page.includes("dl-linux"), "linux download button is gone");
 check(page.includes('href="app/index.html"'), "browser button opens the app");
+check(page.includes('rel="apple-touch-icon" href="apple-touch-icon.png"'), "landing page uses the app icon on iOS");
+const appPage = readFileSync(join(root, "docs/app/index.html"), "utf8");
+check(appPage.includes('rel="icon" href="../images/icon.png"'), "browser app favicon is the app icon");
+check(appPage.includes('rel="apple-touch-icon" href="../apple-touch-icon.png"'), "browser app uses the app icon on iOS");
 
 if (failed) {
   console.error(`${failed} failed`);

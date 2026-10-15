@@ -15,6 +15,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 OUT_ICO = ROOT / "redactor" / "static" / "icon.ico"
 OUT_PNG = ROOT / "redactor" / "static" / "icon.png"
+OUT_TOUCH = ROOT / "docs" / "apple-touch-icon.png"
 
 TILE = (246, 244, 238, 255)
 INK = (17, 17, 17, 255)
@@ -134,12 +135,23 @@ def write_ico(images: list[Image.Image], path: Path) -> None:
     path.write_bytes(header + entries + b"".join(blobs))
 
 
+def apple_touch_icon(size: int = 180) -> Image.Image:
+    """Opaque tile. iOS paints black behind a transparent touch icon."""
+    icon = render(size)
+    flat = Image.new("RGB", (size, size), TILE[:3])
+    flat.paste(icon, mask=icon.getchannel("A"))
+    return flat
+
+
 def main() -> None:
     images = [render(size) for size in SIZES]
     OUT_ICO.parent.mkdir(parents=True, exist_ok=True)
     write_ico(images, OUT_ICO)
     images[-1].save(OUT_PNG)
+    OUT_TOUCH.parent.mkdir(parents=True, exist_ok=True)
+    apple_touch_icon().save(OUT_TOUCH, format="PNG")
     print(f"wrote {OUT_ICO} ({OUT_ICO.stat().st_size} bytes)")
+    print(f"wrote {OUT_TOUCH} ({OUT_TOUCH.stat().st_size} bytes)")
 
 
 if __name__ == "__main__":
