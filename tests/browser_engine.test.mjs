@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -259,10 +259,19 @@ check(page.includes(">In Browser<"), "landing page has the browser button");
 check(page.includes("file stays locally in browser"), "landing page has the local-file note");
 check(!page.includes("dl-linux"), "linux download button is gone");
 check(page.includes('href="app/index.html"'), "browser button opens the app");
-check(page.includes('rel="apple-touch-icon" href="apple-touch-icon.png"'), "landing page uses the app icon on iOS");
+check(page.includes('href="manifest.webmanifest"'), "landing page has a home-screen manifest");
+check(!page.includes('rel="apple-touch-icon"'), "landing page does not opt into iOS icon recoloring");
+const manifest = readFileSync(join(root, "docs/manifest.webmanifest"), "utf8");
+check(manifest.includes('"src": "images/icon-180.png"'), "home-screen icon is the app icon");
+check(manifest.includes('"start_url": "./"'), "landing page opens itself from the home screen");
 const appPage = readFileSync(join(root, "docs/app/index.html"), "utf8");
 check(appPage.includes('rel="icon" href="../images/icon.png"'), "browser app favicon is the app icon");
-check(appPage.includes('rel="apple-touch-icon" href="../apple-touch-icon.png"'), "browser app uses the app icon on iOS");
+check(appPage.includes('href="manifest.webmanifest"'), "browser app has a home-screen manifest");
+check(!appPage.includes('rel="apple-touch-icon"'), "browser app does not opt into iOS icon recoloring");
+const appManifest = readFileSync(join(root, "docs/app/manifest.webmanifest"), "utf8");
+check(appManifest.includes('"src": "../images/icon-180.png"'), "browser app home-screen icon is the app icon");
+check(appManifest.includes('"start_url": "./"'), "browser app opens itself from the home screen");
+check(!existsSync(join(root, "docs/apple-touch-icon.png")), "no root apple touch icon for iOS to recolor");
 
 if (failed) {
   console.error(`${failed} failed`);
