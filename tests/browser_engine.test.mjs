@@ -260,18 +260,30 @@ check(page.includes("file stays locally in browser"), "landing page has the loca
 check(!page.includes("dl-linux"), "linux download button is gone");
 check(page.includes('href="app/index.html"'), "browser button opens the app");
 check(page.includes('href="manifest.webmanifest"'), "landing page has a home-screen manifest");
-check(!page.includes('rel="apple-touch-icon"'), "landing page does not opt into iOS icon recoloring");
+check(page.includes('rel="apple-touch-icon" href="images/home-icon.png"'), "landing page home-screen icon is the shaded app icon");
 const manifest = readFileSync(join(root, "docs/manifest.webmanifest"), "utf8");
-check(manifest.includes('"src": "images/icon-180.png"'), "home-screen icon is the app icon");
+check(manifest.includes('"src": "images/home-icon.png"'), "home-screen manifest uses the shaded app icon");
+check(!manifest.includes("icon-180.png") && !manifest.includes('"src": "images/icon.png"'), "flat icon is not the home-screen icon");
 check(manifest.includes('"start_url": "./"'), "landing page opens itself from the home screen");
 const appPage = readFileSync(join(root, "docs/app/index.html"), "utf8");
 check(appPage.includes('rel="icon" href="../images/icon.png"'), "browser app favicon is the app icon");
 check(appPage.includes('href="manifest.webmanifest"'), "browser app has a home-screen manifest");
-check(!appPage.includes('rel="apple-touch-icon"'), "browser app does not opt into iOS icon recoloring");
+check(appPage.includes('rel="apple-touch-icon" href="../images/home-icon.png"'), "browser app home-screen icon is the shaded app icon");
 const appManifest = readFileSync(join(root, "docs/app/manifest.webmanifest"), "utf8");
-check(appManifest.includes('"src": "../images/icon-180.png"'), "browser app home-screen icon is the app icon");
+check(appManifest.includes('"src": "../images/home-icon.png"'), "browser app manifest uses the shaded app icon");
 check(appManifest.includes('"start_url": "./"'), "browser app opens itself from the home screen");
-check(!existsSync(join(root, "docs/apple-touch-icon.png")), "no root apple touch icon for iOS to recolor");
+check(!existsSync(join(root, "docs/apple-touch-icon.png")), "no flat touch icon at the site root");
+check(!existsSync(join(root, "docs/images/icon-180.png")), "old flat home icon is gone");
+const shade = execFileSync("python3", ["-c", [
+  "from PIL import Image",
+  "im = Image.open('docs/images/home-icon.png')",
+  "edge, mid = im.getpixel((90, 2)), im.getpixel((90, 40))",
+  "assert im.size == (180, 180) and im.mode == 'RGB'",
+  "assert edge != mid",
+  "assert abs(mid[0] - 246) < 8",
+  "assert edge[0] < mid[0] - 8",
+].join("\n")], { cwd: root, encoding: "utf8" });
+check(shade === "", "home icon tile is cream and not a flat fill");
 
 if (failed) {
   console.error(`${failed} failed`);

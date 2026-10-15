@@ -7,6 +7,7 @@ drawn on its own and stored uncompressed.
 
 from __future__ import annotations
 
+import math
 import struct
 from pathlib import Path
 
@@ -15,7 +16,8 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 OUT_ICO = ROOT / "redactor" / "static" / "icon.ico"
 OUT_PNG = ROOT / "redactor" / "static" / "icon.png"
-OUT_HOME = ROOT / "docs" / "images" / "icon-180.png"
+OUT_HOME = ROOT / "docs" / "images" / "home-icon.png"
+OUT_HOME_LARGE = ROOT / "docs" / "images" / "home-icon-512.png"
 
 TILE = (246, 244, 238, 255)
 INK = (17, 17, 17, 255)
@@ -135,17 +137,55 @@ def write_ico(images: list[Image.Image], path: Path) -> None:
     path.write_bytes(header + entries + b"".join(blobs))
 
 
+def _clamp(value: float) -> int:
+    return max(0, min(255, round(value)))
+
+
+def home_icon(size: int) -> Image.Image:
+    """The app icon, with a cream tile iOS will not repaint.
+
+    A flat light tile is treated as a background and turned black in dark
+    mode, which hides the bars. The same cream, shaded in a curve, is not a
+    flat color or a straight gradient, so the artwork stays put.
+    """
+    icon = render(size)
+    src = icon.load()
+    out = Image.new("RGB", (size, size))
+    pixels = out.load()
+    cx = (size - 1) / 2
+    cy = (size - 1) / 2
+    max_r = math.hypot(cx, cy)
+    strength = 32
+    wobble = 10
+    for y in range(size):
+        for x in range(size):
+            red, _green, _blue, alpha = src[x, y]
+            if alpha >= 128 and red < 40:
+                pixels[x, y] = INK[:3]
+                continue
+            dx = (x - cx) / max_r
+            dy = (y - cy) / max_r
+            dist2 = dx * dx + dy * dy
+            shade = dist2 * strength + math.sin(math.atan2(dy, dx) * 2) * wobble * dist2
+            pixels[x, y] = (
+                _clamp(TILE[0] - shade),
+                _clamp(TILE[1] - shade * 0.92),
+                _clamp(TILE[2] - shade * 0.84),
+            )
+    return out
+
+
 def main() -> None:
     images = [render(size) for size in SIZES]
     OUT_ICO.parent.mkdir(parents=True, exist_ok=True)
     write_ico(images, OUT_ICO)
     images[-1].save(OUT_PNG)
-    # Same artwork as the app icon, including the transparent corners.
-    # An opaque apple-touch-icon is what iOS recolors in dark mode.
     OUT_HOME.parent.mkdir(parents=True, exist_ok=True)
-    render(180).save(OUT_HOME)
+    home_icon(180).save(OUT_HOME)
+    home_icon(512).save(OUT_HOME_LARGE)
     print(f"wrote {OUT_ICO} ({OUT_ICO.stat().st_size} bytes)")
     print(f"wrote {OUT_HOME} ({OUT_HOME.stat().st_size} bytes)")
+    print(f"wrote {OUT_HOME_LARGE} ({OUT_HOME_LARGE.stat().st_size} bytes)")
 
 
 if __name__ == "__main__":
