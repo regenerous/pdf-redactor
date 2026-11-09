@@ -58,7 +58,7 @@ def test_page_describes_the_two_ways_to_redact(tmp_path):
         assert "color-name" not in page
         assert "On this page" not in page
         assert f"Version {__version__}" in page
-        assert __version__ == "1.0.3"
+        assert __version__ == "1.0.4"
         assert "f6f4ee" in page
     finally:
         server.shutdown()
