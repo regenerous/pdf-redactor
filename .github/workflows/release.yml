@@ -117,5 +117,5 @@ jobs:
             Portable app. No installer.
             Windows: download PDFRedactor.exe and double-click it.
             Mac (Intel and Apple silicon): download PDFRedactor-mac.zip, unzip it, and open PDFRedactor. The first time, Control-click the app and choose Open.
-            The original PDF is left unchanged. Save a copy writes a new file with the redacted text removed.
+            Open a PDF or a picture. JPEG stays JPEG. Other still pictures are saved as PNG. A multi-page TIFF is saved as a PDF. The original file is left unchanged.
           fail_on_unmatched_files: true
