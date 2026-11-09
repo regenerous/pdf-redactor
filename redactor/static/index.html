@@ -36,9 +36,9 @@
       <p class="stage-error" id="stage-error" role="alert" hidden></p>
       <div class="canvas" id="canvas">
         <div class="empty" id="empty">
-          <p class="empty-title">Redact a PDF</p>
-          <p class="empty-copy">Open a file, then click a word or drag a box over anything that should be gone. Saving writes a new PDF with that information removed.</p>
-          <button type="button" class="primary" id="empty-open">Open a PDF</button>
+          <p class="empty-title">Redact a PDF or an image</p>
+          <p class="empty-copy">Open a file, then click a word or drag a box over anything that should be gone. Saving writes a new file with that information removed.</p>
+          <button type="button" class="primary" id="empty-open">Open a PDF or image</button>
           <p class="drop-hint">Or drop a file here.</p>
         </div>
         <div class="paper-frame" id="paper-frame" hidden>
@@ -96,8 +96,8 @@
       </div>
     </aside>
   </div>
-  <input type="file" id="file-input" accept="application/pdf,.pdf" hidden />
-  <div class="drop-veil" id="drop-veil" hidden>Drop the PDF to open it</div>
+  <input type="file" id="file-input" accept="application/pdf,.pdf,image/png,image/jpeg,image/gif,image/bmp,image/tiff,.png,.jpg,.jpeg,.gif,.bmp,.tif,.tiff" hidden />
+  <div class="drop-veil" id="drop-veil" hidden>Drop a PDF or image to open it</div>
   <p id="live" class="visually-hidden" aria-live="polite"></p>
   <noscript><p class="noscript">PDF Redactor needs JavaScript turned on.</p></noscript>
   <script src="/app.js"></script>

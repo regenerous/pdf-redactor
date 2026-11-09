@@ -7,6 +7,8 @@ const state = {
   redactions: [],
   strings: [],
   mode: "click",
+  format: "pdf",
+  saveName: "",
   color: "#111111",
   custom: false,
   prompt: null,
@@ -98,7 +100,7 @@ async function loadSession() {
 async function openFile(file) {
   if (opening) return;
   if (state.redactions.length > 0) {
-    const discard = window.confirm("Opening another PDF discards redactions you have not saved.");
+    const discard = window.confirm("Opening another file discards redactions you have not saved.");
     if (!discard) return;
   }
   opening = true;
@@ -109,7 +111,7 @@ async function openFile(file) {
     const session = await request("/api/open", {
       method: "POST",
       headers: {
-        "Content-Type": "application/pdf",
+        "Content-Type": file.type || "application/octet-stream",
         "X-Filename": encodeURIComponent(file.name || "document.pdf"),
       },
       body: file,
@@ -128,9 +130,13 @@ async function openFile(file) {
 }
 
 function applySession(session, page) {
+  const switched = !state.doc || state.doc.id !== session.docId;
   state.doc = { id: session.docId, name: session.name, pageCount: session.pageCount };
+  state.format = session.format || "pdf";
+  state.saveName = session.saveName || "";
   state.redactions = session.redactions || [];
   state.strings = session.strings || [];
+  if (switched && state.format !== "pdf") state.mode = "drag";
   state.page = clampPage(page);
   renderChrome();
   showPage(state.page);
@@ -363,7 +369,7 @@ async function saveCopy() {
   saveButton.disabled = true;
   saveButton.textContent = "Saving…";
   clearAlert();
-  const suggested = suggestedName(state.doc.name);
+  const suggested = state.saveName || suggestedName(state.doc.name);
   try {
     const chosen = await chooseSavePath(suggested);
     if (chosen === null) return;
@@ -463,7 +469,8 @@ function renderChrome() {
     nextButton.disabled = state.page >= state.doc.pageCount - 1;
   }
   modeDrag.disabled = !open;
-  modeClick.disabled = !open;
+  modeClick.disabled = !open || state.format !== "pdf";
+  modeClick.title = open && state.format !== "pdf" ? "This picture has no words to click." : "";
   modeDrag.setAttribute("aria-pressed", state.mode === "drag" ? "true" : "false");
   modeClick.setAttribute("aria-pressed", state.mode === "click" ? "true" : "false");
   overlay.classList.toggle("mode-drag", state.mode === "drag");
@@ -492,7 +499,7 @@ function renderChrome() {
 function renderRedacted() {
   redactedList.replaceChildren();
   if (!state.doc) {
-    redactedList.append(emptyRow("Open a PDF to start."));
+    redactedList.append(emptyRow("Open a PDF or image to start."));
     return;
   }
   const rows = redactedRows();
@@ -688,9 +695,11 @@ function hexToRgba(hex, alpha) {
 }
 
 function suggestedName(name) {
-  const stem = name.replace(/\.pdf$/i, "");
-  if (stem.toLowerCase().endsWith("-redacted")) return `${stem}.pdf`;
-  return `${stem}-redacted.pdf`;
+  const match = name.match(/(\.[^./\\]+)$/);
+  const ext = match ? match[1] : ".pdf";
+  const stem = match ? name.slice(0, -ext.length) : name;
+  if (stem.toLowerCase().endsWith("-redacted")) return stem + ext;
+  return `${stem}-redacted${ext}`;
 }
 
 function filenameFromDisposition(header) {

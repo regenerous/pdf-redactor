@@ -51,8 +51,8 @@ def save_to_path(session: DocumentSession, path: str) -> str:
     target = Path(path).expanduser()
     if not target.is_absolute():
         raise DocumentError("Choose a folder for the copy.")
-    if not target.name.lower().endswith(".pdf"):
-        target = target.with_name(target.name + ".pdf")
+    if not target.name.lower().endswith(session.save_suffixes()):
+        target = target.with_name(target.name + session.preferred_suffix())
     if not target.parent.is_dir():
         raise DocumentError("That folder doesn't exist.")
     if target.exists():
@@ -62,7 +62,7 @@ def save_to_path(session: DocumentSession, path: str) -> str:
             raise DocumentError("That file couldn't be replaced.") from exc
         if existing == session.data:
             raise DocumentError("That is the original file. Save the copy under a new name.")
-    data = session.export_pdf()
+    data, _media_type = session.export_copy()
     try:
         target.write_bytes(data)
     except OSError as exc:
@@ -197,7 +197,7 @@ class Handler(BaseHTTPRequestHandler):
         self._json(200, payload)
 
     def _open(self) -> None:
-        data = self._read_body(100 * 1024 * 1024, "This PDF is larger than 100 MB.")
+        data = self._read_body(100 * 1024 * 1024, "This file is larger than 100 MB.")
         raw_name = self.headers.get("X-Filename", "")
         name = unquote(raw_name) if raw_name else "document.pdf"
         session = DocumentSession(data, name)
@@ -298,12 +298,12 @@ class Handler(BaseHTTPRequestHandler):
                     saved = save_to_path(session, str(path))
                     self._json(200, {"saved": saved})
                     return
-            data = session.export_pdf()
-            filename = redacted_filename(session.name)
+            data, media_type = session.export_copy()
+            filename = redacted_filename(session.name, session.output_format)
         ascii_name = "".join(character if 32 <= ord(character) < 127 and character not in '"\\' else "_" for character in filename)
         disposition = f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(filename)}"
         self.send_response(200)
-        self.send_header("Content-Type", "application/pdf")
+        self.send_header("Content-Type", media_type)
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Content-Disposition", disposition)
         self.send_header("Cache-Control", "no-store")
@@ -313,23 +313,23 @@ class Handler(BaseHTTPRequestHandler):
 
     def _require(self) -> DocumentSession:
         if self.state.session is None:
-            raise DocumentError("Open a PDF first.")
+            raise DocumentError("Open a file first.")
         return self.state.session
 
     def _page_index(self, page_text: str) -> int:
         try:
             page = int(page_text)
         except ValueError as exc:
-            raise DocumentError("That page is not in this PDF.") from exc
+            raise DocumentError("That page is not in this file.") from exc
         return page
 
     def _payload_page(self, payload: dict) -> int:
         try:
             page = payload["page"]
         except (KeyError, TypeError) as exc:
-            raise DocumentError("That page is not in this PDF.") from exc
+            raise DocumentError("That page is not in this file.") from exc
         if isinstance(page, bool) or not isinstance(page, int):
-            raise DocumentError("That page is not in this PDF.")
+            raise DocumentError("That page is not in this file.")
         return page
 
     def _json_body(self) -> dict:

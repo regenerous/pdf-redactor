@@ -6,6 +6,7 @@ import argparse
 import sys
 import threading
 import webbrowser
+from pathlib import Path
 
 from redactor import __version__
 from redactor.server import create_server, static_root
@@ -19,10 +20,17 @@ class SaveDialog:
 
         if not webview.windows:
             return ""
+        name = suggested or "redacted.pdf"
+        suffix = Path(name).suffix.lower()
+        filters = {
+            ".png": "PNG images (*.png)",
+            ".jpg": "JPEG images (*.jpg;*.jpeg)",
+            ".jpeg": "JPEG images (*.jpg;*.jpeg)",
+        }
         chosen = webview.windows[0].create_file_dialog(
             webview.SAVE_DIALOG,
-            save_filename=suggested or "redacted.pdf",
-            file_types=("PDF files (*.pdf)",),
+            save_filename=name,
+            file_types=(filters.get(suffix, "PDF files (*.pdf)"),),
         )
         if not chosen:
             return ""
@@ -32,7 +40,7 @@ class SaveDialog:
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Redact text and regions in a PDF.")
+    parser = argparse.ArgumentParser(description="Redact a PDF or an image.")
     parser.add_argument("--port", type=int, default=47321)
     parser.add_argument("--no-window", action="store_true", help="Serve the app without opening a window.")
     parser.add_argument("--browser", action="store_true", help="Open the app in a browser instead of a window.")

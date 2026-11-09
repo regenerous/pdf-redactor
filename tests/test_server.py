@@ -50,6 +50,9 @@ def test_page_describes_the_two_ways_to_redact(tmp_path):
         assert "Click a word" in page
         assert "Drag a box" in page
         assert "Save a copy" in page
+        assert "Open a PDF or image" in page
+        assert "image/png" in page
+        assert ".jpg" in page
         assert "The original file stays untouched." in page
         assert "Redacted" in page
         assert "color-name" not in page
@@ -144,6 +147,76 @@ def test_open_redact_save_and_keep_the_original(tmp_path: Path):
         assert "intake-redacted.pdf" in headers["Content-Disposition"]
         downloaded = pymupdf.open(stream=body, filetype="pdf")
         assert TOKEN not in "".join(page.get_text() for page in downloaded)
+    finally:
+        server.shutdown()
+
+
+def test_open_image_redact_and_save_an_image(tmp_path: Path):
+    pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 60, 40), 0)
+    pix.set_rect(pix.irect, (20, 30, 40))
+    original = pix.tobytes("png")
+    source = tmp_path / "badge.png"
+    source.write_bytes(original)
+    server, _state = start_server()
+    try:
+        status, body, _headers = call(
+            server,
+            "POST",
+            "/api/open",
+            original,
+            {"Content-Type": "image/png", "X-Filename": "badge.png"},
+        )
+        assert status == 200
+        opened = json.loads(body)
+        assert opened["pageCount"] == 1
+        assert opened["format"] == "png"
+        assert opened["name"] == "badge.png"
+        assert opened["saveName"] == "badge-redacted.png"
+
+        status, body, _headers = call(server, "GET", "/api/pages/0/words")
+        info = json.loads(body)
+        assert info["words"] == []
+        assert info["width"] == 60
+
+        status, body, _headers = call(
+            server,
+            "POST",
+            "/api/redactions",
+            json.dumps({"page": 0, "x0": 10, "y0": 8, "x1": 30, "y1": 24, "text": None, "color": "#0000ff"}).encode(),
+            {"Content-Type": "application/json"},
+        )
+        assert status == 200
+
+        copy_path = tmp_path / "badge-redacted.png"
+        status, body, _headers = call(
+            server,
+            "POST",
+            "/api/save",
+            json.dumps({"path": str(copy_path)}).encode(),
+            {"Content-Type": "application/json"},
+        )
+        assert status == 200
+        assert source.read_bytes() == original
+        saved = pymupdf.Pixmap(copy_path.read_bytes())
+        index = (12 * saved.width + 16) * saved.n
+        assert tuple(saved.samples[index : index + 3]) == (0, 0, 255)
+
+        status, body, _headers = call(
+            server,
+            "POST",
+            "/api/save",
+            json.dumps({"path": str(source)}).encode(),
+            {"Content-Type": "application/json"},
+        )
+        assert status == 400
+        assert source.read_bytes() == original
+        assert b"original file" in body
+
+        status, body, headers = call(server, "POST", "/api/save")
+        assert status == 200
+        assert headers["Content-Type"] == "image/png"
+        assert "badge-redacted.png" in headers["Content-Disposition"]
+        assert body.startswith(b"\x89PNG")
     finally:
         server.shutdown()
 

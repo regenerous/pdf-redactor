@@ -1,4 +1,4 @@
-"""Remove information from a PDF instead of only painting over it."""
+"""Remove information from a PDF or an image instead of only painting over it."""
 
 from __future__ import annotations
 
@@ -53,23 +53,253 @@ def color_to_rgb(color: str) -> tuple[float, float, float]:
     return tuple(int(value[index : index + 2], 16) / 255 for index in (0, 2, 4))
 
 
-def safe_filename(name: str) -> str:
-    base = (name or "document.pdf").replace("\\", "/").split("/")[-1].strip()
+# Source kinds the app can open. gif, bmp, and tiff are saved as PNG,
+# because those pixels can be kept without a lossy encode. JPEG stays JPEG.
+_SOURCE_KIND = {
+    ".pdf": "pdf",
+    ".png": "png",
+    ".jpg": "jpeg",
+    ".jpeg": "jpeg",
+    ".gif": "gif",
+    ".bmp": "bmp",
+    ".tif": "tiff",
+    ".tiff": "tiff",
+}
+_KNOWN_SUFFIXES = (".jpeg", ".tiff", ".png", ".jpg", ".gif", ".bmp", ".tif", ".pdf")
+MAX_IMAGE_PIXELS = 80_000_000
+
+
+def _suffix(name: str) -> str:
+    lower = name.lower()
+    for ext in _KNOWN_SUFFIXES:
+        if lower.endswith(ext):
+            return ext
+    return ""
+
+
+def _display_extension(kind: str, suffix: str) -> str:
+    if kind == "jpeg":
+        return ".jpeg" if suffix == ".jpeg" else ".jpg"
+    if kind == "tiff":
+        return ".tiff" if suffix == ".tiff" else ".tif"
+    return {"pdf": ".pdf", "png": ".png", "gif": ".gif", "bmp": ".bmp"}.get(kind, ".pdf")
+
+
+def _output_extension(output_format: str, suffix: str) -> str:
+    if output_format == "jpeg":
+        return ".jpeg" if suffix == ".jpeg" else ".jpg"
+    if output_format == "png":
+        return ".png"
+    return ".pdf"
+
+
+def safe_filename(name: str, kind: str | None = None) -> str:
+    base = (name or "").replace("\\", "/").split("/")[-1].strip()
     cleaned = "".join(character for character in base if character.isprintable() and character not in '<>:"|?*')
     cleaned = cleaned.strip().strip(".")
-    if not cleaned:
-        cleaned = "document.pdf"
-    if not cleaned.lower().endswith(".pdf"):
-        cleaned += ".pdf"
-    return cleaned[:180]
+    suffix = _suffix(cleaned)
+    if kind is None:
+        kind = _SOURCE_KIND.get(suffix, "pdf")
+    stem = cleaned[: -len(suffix)].strip().strip(".") if suffix else cleaned
+    ext = _display_extension(kind, suffix)
+    if not stem:
+        stem = "document" if ext == ".pdf" else "image"
+    return stem[: 180 - len(ext)] + ext
 
 
-def redacted_filename(name: str) -> str:
-    safe = safe_filename(name)
-    stem = safe[:-4]
+def redacted_filename(name: str, output_format: str | None = None) -> str:
+    suffix = _suffix(name)
+    source_kind = _SOURCE_KIND.get(suffix, "pdf")
+    safe = safe_filename(name, source_kind)
+    ext = _suffix(safe)
+    stem = safe[: -len(ext)]
+    if output_format is None:
+        output_format = "png" if source_kind in ("gif", "bmp", "tiff") else source_kind
+    out_ext = _output_extension(output_format, ext)
     if stem.lower().endswith("-redacted"):
-        return safe
-    return f"{stem}-redacted.pdf"
+        return stem + out_ext
+    return f"{stem}-redacted{out_ext}"
+
+
+def sniff_kind(data: bytes) -> str | None:
+    if data.startswith(b"%PDF"):
+        return "pdf"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "jpeg"
+    if data.startswith((b"GIF87a", b"GIF89a")):
+        return "gif"
+    if data.startswith(b"BM"):
+        return "bmp"
+    if data.startswith((b"II*\x00", b"MM\x00*")):
+        return "tiff"
+    return None
+
+
+def _is_webp(data: bytes) -> bool:
+    return len(data) >= 12 and data.startswith(b"RIFF") and data[8:12] == b"WEBP"
+
+
+def _skip_gif_subblocks(data: bytes, index: int) -> int:
+    limit = len(data)
+    while index < limit:
+        size = data[index]
+        index += 1 + size
+        if size == 0:
+            return index
+    return index
+
+
+def _gif_is_animated(data: bytes) -> bool:
+    """True when a GIF has more than one frame.
+
+    MuPDF only decodes one frame, and it is not the first. Redacting that
+    frame would cover the wrong picture, so animated GIFs are refused.
+    """
+    if len(data) < 13 or not data.startswith((b"GIF87a", b"GIF89a")):
+        return False
+    index = 13
+    if data[10] & 0x80:
+        index += 3 * (1 << ((data[10] & 0x07) + 1))
+    frames = 0
+    limit = len(data)
+    while index < limit:
+        marker = data[index]
+        if marker == 0x3B:
+            return False
+        if marker == 0x21:
+            if index + 2 > limit:
+                return False
+            index += 2
+            index = _skip_gif_subblocks(data, index)
+            continue
+        if marker != 0x2C:
+            return False
+        frames += 1
+        if frames > 1:
+            return True
+        if index + 10 > limit:
+            return False
+        packed = data[index + 9]
+        index += 10
+        if packed & 0x80:
+            index += 3 * (1 << ((packed & 0x07) + 1))
+        if index >= limit:
+            return False
+        index += 1
+        index = _skip_gif_subblocks(data, index)
+    return False
+
+
+def _is_upright(transform: object) -> bool:
+    if not isinstance(transform, (list, tuple)) or len(transform) < 6:
+        return False
+    try:
+        a, b, c, d, e, f = (float(value) for value in transform[:6])
+    except (TypeError, ValueError):
+        return False
+    return abs(b) < 0.01 and abs(c) < 0.01 and a > 0 and d > 0 and abs(e) < 0.01 and abs(f) < 0.01
+
+
+def _image_block(page: pymupdf.Page) -> dict | None:
+    for block in page.get_text("dict").get("blocks") or []:
+        if block.get("type") == 1 and block.get("width") and block.get("height"):
+            return block
+    info = page.get_image_info() or []
+    if info and info[0].get("width") and info[0].get("height"):
+        return info[0]
+    return None
+
+
+def _pixmap_from_encoded(block: dict) -> pymupdf.Pixmap | None:
+    image = block.get("image")
+    if not image or not _is_upright(block.get("transform")):
+        return None
+    try:
+        pix = pymupdf.Pixmap(image)
+    except Exception:
+        return None
+    if pix.width < 1 or pix.height < 1:
+        return None
+    if int(block.get("width") or 0) not in (0, pix.width) or int(block.get("height") or 0) not in (0, pix.height):
+        return None
+    return pix
+
+
+def _render_image_page(page: pymupdf.Page, block: dict | None) -> pymupdf.Pixmap:
+    if page.rect.width <= 0 or page.rect.height <= 0:
+        raise DocumentError("This image has no pages.")
+    alpha = True
+    if block and block.get("width") and block.get("height"):
+        if _is_upright(block.get("transform")):
+            width = int(block["width"])
+            height = int(block["height"])
+        else:
+            xres = float(block.get("xres") or 72) or 72
+            yres = float(block.get("yres") or xres) or xres
+            width = max(1, int(round(float(page.rect.width) * xres / 72)))
+            height = max(1, int(round(float(page.rect.height) * yres / 72)))
+        if block.get("ext") in ("jpeg", "jpg"):
+            alpha = False
+    else:
+        width = max(1, int(round(float(page.rect.width))))
+        height = max(1, int(round(float(page.rect.height))))
+        alpha = False
+    matrix = pymupdf.Matrix(width / float(page.rect.width), height / float(page.rect.height))
+    return page.get_pixmap(matrix=matrix, alpha=alpha, colorspace=pymupdf.csRGB)
+
+
+def _copy_pixmap(pix: pymupdf.Pixmap) -> pymupdf.Pixmap:
+    # Pixmap(src) adds an alpha channel. Pass the flag to keep the original.
+    return pymupdf.Pixmap(pix, int(bool(pix.alpha)))
+
+
+def _drop_unused_alpha(pix: pymupdf.Pixmap) -> pymupdf.Pixmap:
+    if not pix.alpha:
+        return pix
+    samples = pix.samples
+    step = pix.n
+    for index in range(step - 1, len(samples), step):
+        if samples[index] != 255:
+            return pix
+    return pymupdf.Pixmap(pix, 0)
+
+
+def _normalize_pixmap(pix: pymupdf.Pixmap) -> pymupdf.Pixmap:
+    if pix.colorspace is not None and not pix.alpha and pix.n == 4:
+        pix = pymupdf.Pixmap(pymupdf.csRGB, pix)
+    pix = _drop_unused_alpha(pix)
+    if pix.width < 1 or pix.height < 1:
+        raise DocumentError("This image has no pages.")
+    if pix.width * pix.height > MAX_IMAGE_PIXELS:
+        raise DocumentError("This image is too large to open.")
+    return pix
+
+
+def _document_from_pixmaps(pixmaps: list[pymupdf.Pixmap]) -> pymupdf.Document:
+    document = pymupdf.open()
+    try:
+        for pix in pixmaps:
+            page = document.new_page(width=float(pix.width), height=float(pix.height))
+            page.insert_image(page.rect, pixmap=pix)
+        return document
+    except Exception:
+        document.close()
+        raise
+
+
+def _pixel_color(pix: pymupdf.Pixmap, color: str) -> tuple[int, ...]:
+    red, green, blue = (int(round(channel * 255)) for channel in color_to_rgb(color))
+    if pix.n == 1:
+        tone = int(round(0.2126 * red + 0.7152 * green + 0.0722 * blue))
+        return (tone,)
+    if pix.n == 2:
+        tone = int(round(0.2126 * red + 0.7152 * green + 0.0722 * blue))
+        return (tone, 255)
+    if pix.alpha:
+        return (red, green, blue, 255)
+    return (red, green, blue)
 
 
 def _finite(value: object) -> float:
@@ -83,22 +313,41 @@ def _finite(value: object) -> float:
 
 
 class DocumentSession:
-    """One open PDF plus the redactions that will be burned in on save.
+    """One open PDF or image, plus the redactions that will be burned in on save.
 
-    Word positions from the PDF are in unrotated page space. The image on
-    screen is rotated for reading, so the app sends rectangles in that
-    display space and they are converted here before anything is stored.
+    Word positions are in unrotated page space. The picture on screen is
+    rotated for reading, so the app sends rectangles in that display space
+    and they are converted here before anything is stored.
+
+    A still image is shown as one page in its own pixels, including the
+    rotation stored in the file. JPEG is saved as JPEG. PNG, GIF, BMP, and
+    a one-page TIFF are saved as PNG. A TIFF with more than one page is
+    saved as a PDF so every page is kept.
     """
 
     def __init__(self, data: bytes, name: str) -> None:
         if not data:
             raise DocumentError("This file is empty.")
         if len(data) > MAX_PDF_BYTES:
-            raise DocumentError("This PDF is larger than 100 MB.")
+            raise DocumentError("This file is larger than 100 MB.")
+        if _is_webp(data):
+            raise DocumentError("WebP images aren't supported. Save the picture as a PNG or JPEG first.")
+        kind = sniff_kind(data)
+        self.data = data
+        self.doc_id = uuid.uuid4().hex
+        self.redactions: list[Redaction] = []
+        self._words: dict[int, list[tuple[int, str, pymupdf.Rect]]] = {}
+        self._image: pymupdf.Pixmap | None = None
+        if kind in ("png", "jpeg", "gif", "bmp", "tiff"):
+            self.kind = kind
+            self._open_image(data, name)
+            return
+        self.kind = "pdf"
+        self.output_format = "pdf"
         try:
             document = pymupdf.open(stream=data, filetype="pdf")
         except Exception as exc:
-            raise DocumentError("This file couldn't be opened. Choose a PDF.") from exc
+            raise DocumentError("This file couldn't be opened. Choose a PDF or an image.") from exc
         if document.needs_pass and not document.authenticate(""):
             document.close()
             raise DocumentError("This PDF is password-protected.")
@@ -106,11 +355,54 @@ class DocumentSession:
             document.close()
             raise DocumentError("This PDF has no pages.")
         self.doc = document
-        self.data = data
-        self.name = safe_filename(name)
-        self.doc_id = uuid.uuid4().hex
-        self.redactions: list[Redaction] = []
-        self._words: dict[int, list[tuple[int, str, pymupdf.Rect]]] = {}
+        self.name = safe_filename(name, "pdf")
+
+    def _open_image(self, data: bytes, name: str) -> None:
+        if self.kind == "gif" and _gif_is_animated(data):
+            raise DocumentError("Animated GIFs aren't supported. Open a still image.")
+        try:
+            source = pymupdf.open(stream=data)
+        except Exception as exc:
+            raise DocumentError("This file couldn't be opened. Choose a PDF or an image.") from exc
+        try:
+            if source.page_count < 1:
+                raise DocumentError("This image has no pages.")
+            pixmaps = []
+            for index in range(source.page_count):
+                page = source[index]
+                block = _image_block(page)
+                pix = _pixmap_from_encoded(block) if block else None
+                if pix is None:
+                    pix = _render_image_page(page, block)
+                pixmaps.append(_normalize_pixmap(pix))
+        except DocumentError:
+            raise
+        except Exception as exc:
+            raise DocumentError("This file couldn't be opened. Choose a PDF or an image.") from exc
+        finally:
+            source.close()
+        try:
+            self.doc = _document_from_pixmaps(pixmaps)
+        except DocumentError:
+            raise
+        except Exception as exc:
+            raise DocumentError("This file couldn't be opened. Choose a PDF or an image.") from exc
+        if len(pixmaps) == 1:
+            self._image = pixmaps[0]
+            self.output_format = "jpeg" if self.kind == "jpeg" else "png"
+        else:
+            self.output_format = "pdf"
+        self.name = safe_filename(name, self.kind)
+
+    def save_suffixes(self) -> tuple[str, ...]:
+        if self.output_format == "jpeg":
+            return (".jpg", ".jpeg")
+        if self.output_format == "png":
+            return (".png",)
+        return (".pdf",)
+
+    def preferred_suffix(self) -> str:
+        return _output_extension(self.output_format, _suffix(self.name))
 
     def close(self) -> None:
         self.doc.close()
@@ -121,7 +413,7 @@ class DocumentSession:
 
     def _page(self, index: int) -> pymupdf.Page:
         if not isinstance(index, int) or isinstance(index, bool) or index < 0 or index >= self.doc.page_count:
-            raise DocumentError("That page is not in this PDF.")
+            raise DocumentError("That page is not in this file.")
         return self.doc[index]
 
     def page_size(self, index: int) -> tuple[float, float]:
@@ -351,13 +643,55 @@ class DocumentSession:
             "docId": self.doc_id,
             "name": self.name,
             "pageCount": self.page_count,
+            "format": self.output_format,
+            "saveName": redacted_filename(self.name, self.output_format),
             **self.activity(),
         }
+
+    def export_copy(self) -> tuple[bytes, str]:
+        if self.output_format == "png":
+            return self.export_image(), "image/png"
+        if self.output_format == "jpeg":
+            return self.export_image(), "image/jpeg"
+        return self.export_pdf(), "application/pdf"
+
+    def export_image(self) -> bytes:
+        if self._image is None:
+            raise DocumentError("The copy couldn't be saved.")
+        if not self.redactions:
+            raise DocumentError("Redact something before saving a copy.")
+        pix = _copy_pixmap(self._image)
+        bounds = pymupdf.Rect(0, 0, pix.width, pix.height)
+        for item in self.redactions:
+            if item.page != 0:
+                continue
+            rect = item.rect() & bounds
+            if rect.is_empty or rect.width < 0.4 or rect.height < 0.4:
+                continue
+            area = pymupdf.IRect(math.floor(rect.x0), math.floor(rect.y0), math.ceil(rect.x1), math.ceil(rect.y1))
+            pix.set_rect(area, _pixel_color(pix, item.color))
+        try:
+            if self.output_format == "jpeg":
+                if pix.alpha:
+                    pix = pymupdf.Pixmap(pix, 0)
+                if pix.n not in (1, 3):
+                    pix = pymupdf.Pixmap(pymupdf.csRGB, pix)
+                return pix.tobytes("jpeg", jpg_quality=95)
+            return pix.tobytes("png")
+        except DocumentError:
+            raise
+        except Exception as exc:
+            raise DocumentError("The copy couldn't be saved.") from exc
+
+    def _reopen(self) -> pymupdf.Document:
+        if self.kind == "pdf":
+            return pymupdf.open(stream=self.data, filetype="pdf")
+        return pymupdf.open(stream=self.doc.tobytes(), filetype="pdf")
 
     def export_pdf(self) -> bytes:
         if not self.redactions:
             raise DocumentError("Redact something before saving a copy.")
-        output = pymupdf.open(stream=self.data, filetype="pdf")
+        output = self._reopen()
         try:
             grouped: dict[int, list[Redaction]] = {}
             for item in self.redactions:

@@ -1,6 +1,6 @@
 # PDF Redactor
 
-Take information out of a PDF. Click a word or drag a box, pick a color, and save a copy. The original file stays as it is.
+Take information out of a PDF or a picture. Click a word or drag a box, pick a color, and save a copy. The original file stays as it is.
 
 A redaction deletes the text underneath it. The word cannot be copied out or searched. A box also erases the part of a picture it covers, which is how scanned pages are handled.
 
@@ -10,12 +10,12 @@ A redaction deletes the text underneath it. The word cannot be copied out or sea
 
 ## Use it
 
-1. Open a PDF, or drop one on the window.
-2. **Click a word** covers that whole word. If it appears again, choose **Redact them all**.
+1. Open a PDF or an image, or drop one on the window. PNG, JPEG, GIF, BMP, and TIFF open. An animated GIF does not.
+2. **Click a word** covers that whole word. If it appears again, choose **Redact them all**. A picture has no words to click, so drag a box.
 3. **Drag a box** covers a region: a signature, a photo, or a scan.
 4. Black is the default color. White still removes the text.
 5. Each redacted string has **Undo** and **Redact all**.
-6. **Save a copy**. The new file name ends in `-redacted`.
+6. **Save a copy**. The new file name ends in `-redacted`. A PDF stays a PDF. A JPEG stays a JPEG. A PNG, GIF, BMP, or one-page TIFF is saved as a PNG. A TIFF with more than one page is saved as a PDF.
 
 Arrow keys turn the page. On Windows, Ctrl+O opens a file and Ctrl+S saves. On a Mac, Command+O opens a file and Command+S saves. Escape closes the “redact every copy” prompt.
 
